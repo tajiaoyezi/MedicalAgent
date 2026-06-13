@@ -1,6 +1,6 @@
 ## Context
 
-本 change 是项目初始化和阶段规划工作，不直接实现业务代码。主 PRD 已经定义 V1.0 POC 的交付边界、主验收闭环、九个建议 phase、P0 必做清单、V1.1/V1.2+ 路线图和验收标准。当前需要把这些内容转成 OpenSpec 可执行规划，供后续实施时逐 phase 执行。
+本 change 是项目初始化和阶段规划工作，不直接实现业务代码。主 PRD 已经定义 V1.0 POC 的交付边界、主验收闭环、九个建议 phase、P0 必做清单、V1.1/V1.2+ 路线图和验收标准。当前重建的重点是修正 OpenSpec apply 语义：规划结果不能被当成当前 change 的实施 checkbox。
 
 关键约束：
 
@@ -9,91 +9,74 @@
 - 主 PRD `22.2` 和 `22.3` 只进入 roadmap / backlog。
 - 医疗数字员工不进入 V1.0 POC 实施，只允许保留规划入口或即将上线说明。
 - 当前文档发起 AIMed 和当前文档发起医学翻译属于 V1.0 P0。
-- 任务必须可验收，并包含目标、范围、前置依赖、验收标准、测试/验证方式、风险。
+- 后续 task 必须可验收，并包含目标、范围、前置依赖、验收标准、测试/验证方式、风险。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 形成一个 OpenSpec change，描述 V1.0 POC 的范围治理、phase 计划和 roadmap 隔离规则。
-- 按主 PRD `0.4` 生成九个 phase 的任务清单。
-- 确保任务覆盖 `22.1 P0 必做`，且每个任务可独立验收。
-- 将 V1.1/V1.2+ 内容记录为非阻塞 backlog / roadmap。
+- 形成一个 OpenSpec 规划 change，描述 V1.0 POC 的范围治理、phase 计划和 roadmap 隔离规则。
+- 按主 PRD `0.4` 生成九个 phase 的后续实施任务计划。
+- 确保 `openspec apply initialize-v1-poc-planning` 不会启动业务功能开发。
+- 为后续每个 phase 创建独立 implementation change 提供拆分依据。
 
 **Non-Goals:**
 
 - 不实现应用代码、数据库迁移、UI 页面或后端服务。
+- 不把未来 V1.0 业务任务作为当前 change 的待执行 checkbox。
 - 不把遗漏项与补充需求清单作为 V1.0 实施范围输入。
 - 不生成数字员工创建、运行、编排、工具调用、执行历史任务。
 - 不把 V1.1/V1.2+ 规划作为 V1.0 验收前置条件。
 
 ## Decisions
 
-### Decision 1: 使用单一规划 capability 承载本次初始化
+### Decision 1: 保留单一规划 capability
 
-本 change 只新增 `v1-poc-planning` 一个 capability，用于统一约束：
+本 change 只新增 `v1-poc-planning` 一个 capability，用于统一约束需求源治理、phase 顺序、task 字段结构、roadmap 隔离和数字员工边界。这样避免重新出现多个 spec 目录被误认为 phase 目录的问题。
 
-| 约束方向 | 内容 |
-|---|---|
-| 需求源治理 | 唯一需求源、P0 范围、优先级冲突裁决 |
-| 阶段计划 | 九个 phase、依赖关系、task 字段结构 |
-| 路线图隔离 | V1.1/V1.2+ 只进入 roadmap/backlog |
-| 数字员工边界 | 仅保留规划入口，不实施运行能力 |
+备选方案是拆成 scope、phase、roadmap 三个 capability。未采用，因为用户已经明确期望生成 phase 和 task，而不是多个看起来像 phase 的 spec capability。
 
-理由：用户期望生成 phase 和 task；将规划约束合并为一个 capability，可以避免生成多个看起来像 phase 的 spec 目录。
+### Decision 2: 未来实施任务不用 checkbox
 
-备选方案：拆成 scope、phase、roadmap 三个 capability。未采用，因为目录结构会让人误以为这些是 phase 目录。
+`tasks.md` 中只保留本规划 change 已完成的可执行规划任务 checkbox。47 个 V1.0 后续业务任务用编号标题和字段描述，不使用 `- [ ]`，并明确标注为“非当前 apply 任务”。
 
-### Decision 2: phase 顺序完全采用主 PRD 0.4
+理由：OpenSpec apply 会解析 checkbox。如果把未来业务任务写成 `- [ ]`，apply 会正确地把它们当作当前待执行任务，这与规划 change 的 Non-Goals 冲突。
 
-V1.0 POC phase 顺序固定为：
+### Decision 3: 后续实施按 phase 创建独立 change
 
-| Phase | 说明 | 依赖 |
-|---|---|---|
-| foundation | 单租户账号、权限、文档中心、对象存储、基础后台可运行 | 无 |
-| onlyoffice-bridge | Word / PPT / Excel / PDF 接入，保存回调和版本链路可用 | foundation |
-| model-and-parse | 公网 / 私有化模型配置、文档视觉解析和解析入库可用 | foundation |
-| aimed-rag-citation | AIMed 六大模式、PubMed / 离线缓存、RAG、引用溯源可用 | onlyoffice-bridge, model-and-parse |
-| ai-panel-recent-tasks | 医疗 AI 面板、写回确认、最近任务恢复可用 | onlyoffice-bridge, aimed-rag-citation |
-| knowledge-admin | 13 个知识库、上传 / URL / PubMed 导入、索引和问答可用 | model-and-parse, aimed-rag-citation |
-| medical-translation | 文件级医学翻译、版式还原、双语对照和历史可用 | onlyoffice-bridge, model-and-parse |
-| template-center | 200 个模板、搜索筛选、使用模板和 ONLYOFFICE 打开可用 | onlyoffice-bridge |
-| security-evidence | 脱敏、免责声明、审计、Demo 数据集和验收用例完整 | foundation through template-center |
+后续推荐按以下顺序创建 implementation change：
 
-理由：该顺序是主 PRD 明确给出的后续 phase / task 生成规则，且依赖关系符合技术落地顺序。
+| 顺序 | Phase | 建议 change |
+|---:|---|---|
+| 1 | foundation | `implement-foundation-phase` |
+| 2 | onlyoffice-bridge | `implement-onlyoffice-bridge-phase` |
+| 3 | model-and-parse | `implement-model-and-parse-phase` |
+| 4 | aimed-rag-citation | `implement-aimed-rag-citation-phase` |
+| 5 | ai-panel-recent-tasks | `implement-ai-panel-recent-tasks-phase` |
+| 6 | knowledge-admin | `implement-knowledge-admin-phase` |
+| 7 | medical-translation | `implement-medical-translation-phase` |
+| 8 | template-center | `implement-template-center-phase` |
+| 9 | security-evidence | `implement-security-evidence-phase` |
 
-### Decision 3: tasks.md 使用详细任务字段而不是仅列 checkbox
+每个 implementation change 可以把对应 phase 的后续任务转换为 `- [ ]` checkbox，并按真实技术栈补充实现细节。
 
-每个任务仍使用 OpenSpec 可追踪的 `- [ ] X.Y` checkbox 格式，但在 checkbox 下补齐目标、范围、前置依赖、验收标准、测试/验证方式、风险。
+### Decision 4: 技术栈仍作为后续 implementation decision
 
-理由：OpenSpec apply 阶段需要 checkbox 追踪，用户同时要求每个 task 可验收并包含完整实施信息。
-
-### Decision 4: V1.1/V1.2+ backlog 不放入实施 checkbox
-
-V1.1 和 V1.2+ 项目记录在 tasks.md 的 roadmap 区域中，但不使用 `- [ ]` checkbox，避免被 OpenSpec apply 当作 V1.0 待办。
-
-理由：用户明确要求 roadmap / backlog 不进入 V1.0 POC 实施任务。
-
-### Decision 5: 数字员工只作为范围边界处理
-
-V1.0 允许保留医疗数字员工导航入口或规划中页面，但不生成任何创建、运行、编排、工具调用、执行历史任务。
-
-理由：主 PRD 12.2、22.2、22.3、24.8 一致说明数字员工真实能力不进入 V1.0 POC 验收。
+当前规划不隐式决定前后端框架、数据库、对象存储、鉴权方案、模型 provider 或部署方式。启动 `foundation` implementation change 前必须先明确这些工程决策。
 
 ## Risks / Trade-offs
 
-- [Risk] P0 范围很大，单个 tasks.md 会较长。Mitigation: 按 phase 分组，每个任务保留可执行字段，后续实施时可逐 phase 拆成更小 change。
-- [Risk] 正文中存在数字员工、文档脑图、PPT 生成等后续能力描述，容易误入 V1.0。Mitigation: 以第 22 章为优先级裁决点，并在 spec 中写入排除规则。
-- [Risk] “200 个真实可用模板”和 Demo 数据集需要大量资产准备。Mitigation: 在 template-center 和 security-evidence phase 中把资产清单、版权状态和验收证据作为任务验收条件。
-- [Risk] 公网模型、私有化模型、PubMed、公网导入和视觉解析服务依赖外部可用性。Mitigation: 每个相关任务必须同时验证公网路径、私有化/离线路径或明确 fallback，并记录审计。
-- [Risk] 医疗安全边界不清会导致高风险输出。Mitigation: security-evidence phase 统一补齐免责声明、脱敏门禁、医生确认和审计证据。
+- [Risk] 规划文件中保留大量后续 task，文件会较长。Mitigation: 使用 phase 分组，并明确它们不是当前 apply checkbox。
+- [Risk] 后续实施时可能忘记重新创建 implementation change。Mitigation: 在 spec、design、tasks 中重复写入“按 phase 创建独立 change”的规则。
+- [Risk] 主 PRD P0 范围很大，单个 phase 仍可能过大。Mitigation: implementation change 可继续按子任务拆分，但不得扩大 V1.0 P0 范围。
+- [Risk] 技术栈未定会阻塞真实开发。Mitigation: 把技术栈选择放入 `foundation` 前置决策，不在本规划 change 中隐式决定。
 
 ## Migration Plan
 
-1. 使用本 change 的 proposal/spec/design/tasks 作为后续 V1.0 POC 实施入口。
-2. 后续实施时优先从 Phase 1 foundation 开始，逐 phase 完成并打勾。
-3. 如果需要更细粒度执行，可为单个 phase 创建新的 OpenSpec implementation change，但不得扩大 V1.0 P0 范围。
-4. V1.1/V1.2+ 内容保持 roadmap 状态，直到用户明确启动对应版本 change。
+1. 删除旧的 `initialize-v1-poc-planning` change 产物。
+2. 重建本规划 change，并只保留已完成的规划任务 checkbox。
+3. 将 V1.0 POC 业务任务作为非当前 apply 的 phase/task plan 记录。
+4. 后续实施时从 `implement-foundation-phase` 开始创建新的 OpenSpec change。
 
 ## Open Questions
 
