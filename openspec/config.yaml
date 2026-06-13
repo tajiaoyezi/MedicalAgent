@@ -5,6 +5,21 @@ context: |
   所有 OpenSpec 产出物必须用简体中文撰写。
   技术专有名词、API 名称、文件路径、代码标识符可以保留英文。
 
+  OpenSpec 固定结构关键字可以保留英文：
+  - ## ADDED Requirements
+  - ## MODIFIED Requirements
+  - ## REMOVED Requirements
+  - ### Requirement:
+  - #### Scenario:
+  - WHEN / THEN / AND
+  - MUST / SHALL / MAY
+
+  除上述 OpenSpec 固定结构关键字外，正文、标题说明、Requirement 名称、Scenario 名称、任务说明、设计说明必须使用简体中文。
+  不要使用英文句式生成规格正文，例如 “The system MUST ...”。
+  应写为中文句式，例如 “系统 MUST ...” 或 “规划系统 MUST ...”。
+
+  capability id、目录名、代码标识符必须使用 kebab-case 英文，例如 v1-poc-phase-plan；但其说明正文必须使用中文。
+
   项目名称：MedOffice AI 医疗智能办公空间 V1.0 POC。
   权威需求源：docs/MedOffice_AI_完整产品需求文档_V1.0.md。
   审查追溯文档：docs/MedOffice_AI_遗漏项与补充需求清单_V1.0.md。
@@ -27,19 +42,29 @@ rules:
     - Capabilities 必须使用 kebab-case。
     - 必须标明新建或修改哪些能力规格。
     - 只描述为什么做和做什么，不写具体实现细节。
+    - OpenSpec 模板标题可以保留英文，但正文和条目说明必须使用中文。
+    - Capabilities 的标识符必须使用 kebab-case 英文，冒号后的说明必须使用中文。
   specs:
     - 每个 Requirement 必须使用可验收、可测试的表述。
     - 每个 Requirement 必须至少包含一个 Scenario。
-    - Scenario 标题必须使用四级标题：#### Scenario: <name>。
+    - "Scenario 标题必须使用四级标题：#### Scenario: <name>。"
     - 需求描述优先使用 MUST 或 SHALL，避免使用模糊的 should/may。
+    - Requirement 名称必须使用中文，不要写成英文标题。
+    - Scenario 名称必须使用中文，不要写成英文标题。
+    - 除 OpenSpec 固定结构关键字外，spec 正文必须使用中文。
+    - 不得使用 “The system MUST ...” 这类英文句式；应使用 “系统 MUST ...” 或具体中文主语。
     - 医疗 AI、文档写回、知识库、翻译、权限、审计相关需求必须覆盖失败场景和边界条件。
   design:
     - 只有涉及跨模块架构、新依赖、数据模型、安全、性能、迁移或明显技术歧义时才创建 design.md。
     - 必须包含 Context、Goals / Non-Goals、Decisions、Risks / Trade-offs、Migration Plan、Open Questions。
     - 涉及 AI 能力时必须说明上下文来源、模型配置、人工确认、审计记录和医疗责任边界。
     - 涉及外部服务时必须说明失败、超时、不可用情况下的降级策略。
+    - OpenSpec 模板标题可以保留英文，但设计正文必须使用中文。
+    - 技术名词、API、provider 名称可以保留英文。
   tasks:
     - 任务必须使用可追踪 checkbox 格式：- [ ] X.Y 任务描述。
-    - 任务按依赖顺序排列，并按 ## 编号分组。
+    - "任务按依赖顺序排列，并按 ## 编号分组。"
     - 每个任务应小到可以在一次工作会话中完成。
     - 每个任务必须可验证，描述中应能看出完成标准。
+    - task 标题和字段内容必须使用中文。
+    - phase id 可以沿用主 PRD 中的英文标识，例如 foundation、onlyoffice-bridge。
