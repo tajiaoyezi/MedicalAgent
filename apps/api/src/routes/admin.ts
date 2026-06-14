@@ -120,6 +120,15 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
     const client = await pool.connect();
     try {
+      // 跨租户隔离：先确认目标用户属于当前管理员所在租户，否则拒绝（防 IDOR）
+      const target = await client.query(
+        "SELECT tenant_id FROM users WHERE user_id = $1",
+        [id],
+      );
+      if (!target.rows.length || target.rows[0].tenant_id !== user.tenantId) {
+        return reply.status(404).send({ error: "用户不存在" });
+      }
+
       if (body.isEnabled !== undefined) {
         await client.query(
           "UPDATE users SET is_enabled = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3",
@@ -127,12 +136,15 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         );
         if (!body.isEnabled) {
           revokedUserIds.add(id);
+        } else {
+          // 重新启用：从内存吊销集合移除，否则该用户即使重新登录也被永久拦截
+          revokedUserIds.delete(id);
         }
       }
       if (body.deptId !== undefined) {
         await client.query(
-          "UPDATE users SET dept_id = $1, updated_at = NOW() WHERE user_id = $2",
-          [body.deptId, id],
+          "UPDATE users SET dept_id = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3",
+          [body.deptId, id, user.tenantId],
         );
       }
       if (body.roleSlug) {

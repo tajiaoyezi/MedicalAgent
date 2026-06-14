@@ -10,7 +10,11 @@ import {
 
 export async function registerAuthRoutes(app: FastifyInstance) {
   app.post("/api/auth/login", async (request, reply) => {
-    const body = request.body as { username?: string; password?: string };
+    const body = request.body as {
+      username?: string;
+      password?: string;
+      tenant?: string;
+    };
     const username = body.username?.trim();
     const password = body.password ?? "";
 
@@ -20,20 +24,37 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
     const client = await pool.connect();
     try {
+      // 解析登录所属租户：username 仅在 (tenant_id, username) 维度唯一，
+      // 不限定租户会在多租户下命中错误租户的用户。
+      let tenantId: string | undefined;
+      if (body.tenant) {
+        const tr = await client.query(
+          "SELECT tenant_id FROM tenants WHERE name = $1 LIMIT 1",
+          [body.tenant],
+        );
+        tenantId = tr.rows[0]?.tenant_id;
+        if (!tenantId) {
+          return reply.status(401).send({ error: "凭据无效" });
+        }
+      } else {
+        const tr = await client.query("SELECT tenant_id FROM tenants");
+        if (tr.rows.length === 1) {
+          tenantId = tr.rows[0].tenant_id;
+        } else if (tr.rows.length > 1) {
+          return reply.status(400).send({ error: "存在多个租户，请指定租户" });
+        }
+      }
+
       const { rows } = await client.query(
         `SELECT user_id, tenant_id, password_hash, is_enabled FROM users
-         WHERE username = $1 LIMIT 1`,
-        [username],
+         WHERE username = $1 AND tenant_id = $2 LIMIT 1`,
+        [username, tenantId ?? null],
       );
 
       if (!rows.length) {
-        const tenantRow = await client.query(
-          "SELECT tenant_id FROM tenants LIMIT 1",
-        );
-        const tid = tenantRow.rows[0]?.tenant_id;
-        if (tid) {
+        if (tenantId) {
           await writeAudit(client, {
-            tenantId: tid,
+            tenantId,
             actionType: "login",
             result: "失败",
             failureReason: "用户不存在",
