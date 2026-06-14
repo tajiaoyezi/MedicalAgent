@@ -6,20 +6,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库性质
 
-这是一个 **规格先行（spec-only）仓库**：目前**没有任何应用代码**，全部内容是 MedOffice AI（医疗智能办公空间，以 ONLYOFFICE Docs 替代 WPS）V1.0 POC 的 OpenSpec 规格集。开发方式是 OpenSpec 规格驱动（`@fission-ai/openspec` v1.4.1，schema=`spec-driven`）：先把 9 个有序 change 的 proposal/design/tasks/specs 写定并通过校验，再逐 phase `apply` 落地实现代码。
+这是一个 **规格驱动 + 实现并存** 的仓库：MedOffice AI（医疗智能办公空间，以 ONLYOFFICE Docs 替代 WPS）V1.0 POC。需求与设计以 OpenSpec 规格驱动（`@fission-ai/openspec` v1.4.1，schema=`spec-driven`）：9 个有序 change 的 proposal/design/tasks/specs 先写定并通过校验，再逐 phase `apply` 落地。
 
-因此本仓库的「build / lint / test」等价物是 **OpenSpec 校验与生命周期命令**，而非编译测试。
+**实现技术栈**：前端 `apps/web`（React19 + Vite，端口 5173，vite 代理 `/api`→localhost:3001）；后端 `apps/server`（**Go + gin + gorm**，端口 3001，PostgreSQL + MinIO，迁移 001–006 由 `go:embed` 内嵌）。后端语言此前未在规格中约定、由历史会话隐式选 Node/Fastify，已整体重写为 Go（见 `docs/adr/0001-backend-go.md`）；前端、全部 OpenSpec 规格、§18 数据模型不变。
+
+因此本仓库的「build / lint / test」有两层：① OpenSpec 校验（`openspec validate --changes --strict`）；② Go 编译 + 6 套冒烟（见下）。
 
 ## 常用命令
 
 ```bash
-openspec validate --changes --strict   # 校验所有 change（提交前必须 9/9 通过；CI 守门等价物）
+openspec validate --changes --strict   # 校验所有 change（提交前必须通过；CI 守门等价物）
 openspec list                          # 列出所有 change
-openspec list --specs                  # 列出已部署 specs（当前为空，尚未 sync）
 openspec status --change "<name>" --json   # 查看某 change 的 artifact 完成度与路径
 openspec show <change-or-spec>         # 查看单个 change / spec
 openspec view                          # 交互式 dashboard
 ```
+
+### 后端（Go，apps/server）与本地联调
+
+```bash
+docker compose up -d         # 起依赖：PostgreSQL + MinIO + onlyoffice/documentserver:8.2
+npm run migrate              # 迁移 001–006 + seed（go run ./cmd/migrate；种子 admin/admin123、user/user123，单租户「MedOffice 演示医院」）
+npm run dev:api              # 起 Go 后端 :3001（go run ./cmd/server，含后台解析 worker）
+npm run dev:web              # 起前端 :5173（两者分别在两个终端起；Windows 下勿用 `&` 串联）
+npm run build:api            # go build ./...（apps/server）
+# 冒烟（需 docker 依赖已起；本机 docker 实跑，非 mock）：
+npm run smoke                # 基建：对象存储全链路 + /api/health + 跨实现 AES-GCM golden
+npm run smoke:integration    # c01 主线：登录→/api/me→上传→下载→删除→审计
+npm run smoke:authz          # c01 跨租户/越权加固（10 断言）
+npm run smoke:onlyoffice     # c02 JWT/编辑器配置/文件路由/DS healthcheck
+npm run smoke:editor-authz   # c02 写回意图状态机/DS URL 白名单/回调 JWT（15 断言）
+npm run smoke:c03            # c03 模型 fallback/脱敏门控/解析双链路（内置 mock 端口 4733，9 段 22 断言）
+```
+
+> 密钥：`MODEL_CREDENTIAL_SECRET`、`ONLYOFFICE_JWT_SECRET`、`SESSION_SECRET` 生产必配（缺失即 panic），dev 用本地占位。迁移编号映射见 `apps/server/internal/db/MIGRATIONS.md`。schema 唯一来源是 6 个 `.sql`（gorm 不接管，无 AutoMigrate）。
 
 规格生命周期通过 `.cursor/skills` 与 `.codex/skills`（以及本仓 `/openspec-propose` 等 skill）驱动，对应斜杠命令：
 
@@ -86,4 +106,4 @@ PRD §0.4 把 V1.0 拆为 9 个有序 phase，逐级依赖（`openspec/changes/c
 
 ## 当前状态
 
-规格已写完并经多轮对抗式审查收敛到 0 high/critical，`openspec validate --changes --strict` 9/9 通过，已逐 change 提交在 `master`。**c01-foundation 已 apply 落地**；**c02-onlyoffice-bridge 实施中**（PR #11）。下一步：c02 合入后继续 c03 起 `/opsx:apply`。
+规格已写完并经多轮对抗式审查收敛到 0 high/critical，已逐 change 提交在 `master`。实现侧：**c01–c03 已落地，且后端整体重写为 Go（`apps/server`，gin+gorm），Node `apps/api` 已删除**（换栈 ADR 见 `docs/adr/0001-backend-go.md`）。前端 `apps/web` 不变。6 套冒烟在本机 docker 实跑全绿，前后端契约逐端点对等。下一步：从 **c04-aimed-rag-citation** 起 `/opsx:apply`（c04 须新增「消费 c03『索引就绪』事件构建 BM25+向量索引」的 Requirement，design D8 硬契约）。
