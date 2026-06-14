@@ -1,5 +1,6 @@
 /**
  * c02 编辑器授权与写回溯源冒烟 — 多数用例可离线运行
+ * parse-status 端点用例需 DB 可达；API 在线时真打 /api/preview/:id/parse-status
  */
 import { config } from "../config.js";
 import { buildDocumentKey, buildEditorConfig } from "../services/editor-config.js";
@@ -108,7 +109,7 @@ function testDsUrlAllowlist() {
 }
 
 
-async function testParseStatusTableMissing() {
+async function testParseStatusEndpointWhenTableMissing() {
   const client = await pool.connect();
   try {
     const reg = await client.query(
@@ -116,21 +117,91 @@ async function testParseStatusTableMissing() {
     );
     if (reg.rows[0]?.t) {
       console.warn(
-        "  ⚠ document_parse_jobs 已存在（c03 已落地），跳过表缺失 pending 断言",
+        "  ⚠ document_parse_jobs 已存在（c03 已落地），跳过表缺失 parse-status 端点断言",
       );
       return;
     }
-    ok(true, "document_parse_jobs 表不存在（to_regclass null）");
-    const pending = {
-      status: "pending",
-      message: "等待 c03 解析服务建表并消费 upload_success 事件后创建作业",
-      jobs: [] as unknown[],
-    };
-    ok(pending.status === "pending", "表缺失时 parse-status 应返回 pending");
-    ok(Array.isArray(pending.jobs) && pending.jobs.length === 0, "pending 时 jobs 为空数组");
   } finally {
     client.release();
   }
+
+  const base = `http://localhost:${config.port}`;
+  let cookie: string;
+  try {
+    const tenantRes = await pool.query(
+      `SELECT t.name FROM tenants t
+       JOIN users u ON u.tenant_id = t.tenant_id
+       WHERE u.username = 'admin' LIMIT 1`,
+    );
+    if (!tenantRes.rows.length) {
+      console.warn("  ⚠ 无 admin 种子用户，跳过 parse-status 端点检查");
+      return;
+    }
+    const tenantName = tenantRes.rows[0].name as string;
+    const loginRes = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "admin",
+        password: "admin123",
+        tenant: tenantName,
+      }),
+    });
+    if (!loginRes.ok) {
+      throw new Error(`login ${loginRes.status}`);
+    }
+    const cookies = loginRes.headers.getSetCookie?.() ?? [];
+    cookie = cookies.map((c) => c.split(";")[0]).join("; ");
+  } catch {
+    console.warn("  ⚠ API 未运行，跳过 parse-status 端点在线检查");
+    return;
+  }
+
+  const docRes = await pool.query(
+    `SELECT d.document_id FROM documents d
+     JOIN users u ON u.tenant_id = d.tenant_id
+     WHERE u.username = 'admin' AND d.is_deleted = FALSE
+     LIMIT 1`,
+  );
+
+  let documentId: string;
+  if (docRes.rows.length) {
+    documentId = docRes.rows[0].document_id as string;
+  } else {
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], {
+        type: "image/png",
+      }),
+      "smoke-parse.png",
+    );
+    form.append("space", "my");
+    const up = await fetch(`${base}/api/documents/upload`, {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: form,
+    });
+    if (!up.ok) {
+      throw new Error(`upload failed: ${up.status}`);
+    }
+    const uploaded = (await up.json()) as { documentId: string };
+    documentId = uploaded.documentId;
+    ok(!!documentId, "无种子文档时上传 smoke-parse.png 供 parse-status 用例");
+  }
+
+  const res = await fetch(`${base}/api/preview/${documentId}/parse-status`, {
+    headers: { Cookie: cookie },
+  });
+  ok(res.status === 200, "表缺失时 GET /parse-status 返回 200");
+  const body = (await res.json()) as {
+    status?: string;
+    jobs?: unknown[];
+    message?: string;
+  };
+  ok(body.status === "pending", "表缺失时 parse-status JSON status=pending");
+  ok(Array.isArray(body.jobs) && body.jobs.length === 0, "表缺失时 parse-status jobs=[]");
+  ok(!!body.message, "表缺失时 parse-status 含说明 message");
 }
 
 async function testCallbackJwtRequired() {
@@ -155,7 +226,7 @@ async function main() {
   testWritebackPeekStatus();
   testJwtConfigShape();
   testDsUrlAllowlist();
-  await testParseStatusTableMissing();
+  await testParseStatusEndpointWhenTableMissing();
   await testCallbackJwtRequired();
   console.log(`editor-authz smoke passed (${pass} assertions)`);
 }
