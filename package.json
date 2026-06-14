@@ -11,6 +11,9 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web",
     "migrate": "npm run migrate --workspace=apps/api",
-    "smoke": "npm run smoke --workspace=apps/api"
+    "smoke": "npm run smoke --workspace=apps/api",
+    "smoke:onlyoffice": "npm run smoke:onlyoffice --workspace=apps/api",
+    "smoke:editor-authz": "npm run smoke:editor-authz --workspace=apps/api",
+    "demo:editor": "npm run demo:editor --workspace=apps/api"
   }
 }

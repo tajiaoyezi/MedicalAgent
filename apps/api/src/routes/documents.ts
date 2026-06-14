@@ -605,11 +605,36 @@ export async function registerDocumentRoutes(app: FastifyInstance) {
     }
   });
 
-  // 占位路由：打开 / AIMed / 翻译 / 模板 / 知识库
+  // 打开文档 → 跳转编辑器/预览（c02）
+  app.get("/api/documents/:id/actions/open", async (request, reply) => {
+    const user = requireAuth(request);
+    const { id } = request.params as { id: string };
+
+    const client = await pool.connect();
+    try {
+      const docRes = await client.query(
+        "SELECT * FROM documents WHERE document_id = $1 AND tenant_id = $2 AND is_deleted = FALSE",
+        [id, user.tenantId],
+      );
+      if (!docRes.rows.length) return reply.status(404).send({ error: "文档不存在" });
+      const doc = docRes.rows[0] as DocumentRow;
+      const level = await resolveEffectivePermission(client, user, doc);
+      if (level === "none") return reply.status(403).send({ error: "无权限" });
+
+      return {
+        redirect: `/editor/${id}`,
+        documentId: id,
+      };
+    } finally {
+      client.release();
+    }
+  });
+
+  // 占位路由：AIMed / 翻译 / 模板 / 知识库
   app.get("/api/documents/:id/actions/:action", async (request, reply) => {
     const user = requireAuth(request);
     const { id, action } = request.params as { id: string; action: string };
-    const allowed = ["open", "aimed", "translate", "template", "knowledge"];
+    const allowed = ["aimed", "translate", "template", "knowledge"];
     if (!allowed.includes(action)) {
       return reply.status(400).send({ error: "未知操作" });
     }

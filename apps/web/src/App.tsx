@@ -17,6 +17,8 @@ import TemplatesPage from "./features/templates/TemplatesPage";
 import DocumentsPage from "./features/documents/DocumentsPage";
 import RecentTasksPage from "./features/recent/RecentTasksPage";
 import AdminPage from "./features/admin/AdminPage";
+import EditorPage from "./features/editor/EditorPage";
+import PreviewPage from "./features/editor/PreviewPage";
 
 function AppRoutes({
   user,
@@ -120,12 +122,27 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppRoutes
-        user={user}
-        onLogout={handleLogout}
-        theme={theme}
-        onThemeChange={handleThemeChange}
-      />
+      <Routes>
+        <Route
+          path="/editor/:documentId"
+          element={user ? <EditorPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/preview/:documentId"
+          element={user ? <PreviewPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/*"
+          element={
+            <AppRoutes
+              user={user}
+              onLogout={handleLogout}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+            />
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }

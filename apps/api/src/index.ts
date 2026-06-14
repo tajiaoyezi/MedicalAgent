@@ -10,6 +10,9 @@ import { registerPortalRoutes } from "./routes/portal.js";
 import { registerDocumentRoutes } from "./routes/documents.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerRecentTasksRoutes } from "./routes/recent-tasks.js";
+import { registerEditorRoutes } from "./routes/editor.js";
+import { registerBridgeRoutes } from "./routes/bridge.js";
+import { registerPreviewRoutes } from "./routes/preview.js";
 import { revokedUserIds } from "./middleware/session-revoke.js";
 import { getSessionUser } from "./middleware/auth.js";
 
@@ -54,6 +57,9 @@ await registerPortalRoutes(app);
 await registerDocumentRoutes(app);
 await registerAdminRoutes(app);
 await registerRecentTasksRoutes(app);
+await registerEditorRoutes(app);
+await registerBridgeRoutes(app);
+await registerPreviewRoutes(app);
 
 app.setErrorHandler((error, _request, reply) => {
   const statusCode = (error as { statusCode?: number }).statusCode ?? 500;

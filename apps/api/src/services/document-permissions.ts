@@ -55,6 +55,11 @@ export function canComment(level: PermissionLevel): boolean {
   );
 }
 
+/** §10.4：复制文本属「可评论」及以上专属 */
+export function canCopy(level: PermissionLevel): boolean {
+  return canComment(level);
+}
+
 export interface DocumentRow {
   document_id: string;
   tenant_id: string;

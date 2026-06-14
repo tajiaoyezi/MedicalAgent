@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
@@ -17,7 +17,9 @@ async function runMigrations() {
     `);
 
     const migrationsDir = join(__dirname, "migrations");
-    const files = ["001_initial.sql"].sort();
+    const files = readdirSync(migrationsDir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
 
     for (const file of files) {
       const version = file.replace(".sql", "");

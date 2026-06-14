@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Upload, Download, Trash2, RotateCcw, FileText, LayoutGrid, List } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Upload, Download, Trash2, RotateCcw, FileText, LayoutGrid, List, ExternalLink } from "lucide-react";
 import ModuleShell from "../portal/ModuleShell";
 import { api } from "../../lib/api";
 import { Tag, EmptyState, SkeletonList } from "../../components";
@@ -29,6 +30,7 @@ const PERM_TONE: Record<string, "primary" | "success" | "warning" | "neutral"> =
 };
 
 export default function DocumentsPage() {
+  const navigate = useNavigate();
   const [space, setSpace] = useState("my");
   const [recycle, setRecycle] = useState(false);
   const [view, setView] = useState<"table" | "card">("table");
@@ -85,6 +87,10 @@ export default function DocumentsPage() {
     api(`/api/documents/${id}/restore`, { method: "POST" }).then(load);
   }
 
+  function openDoc(id: string) {
+    navigate(`/editor/${id}`);
+  }
+
   const actions = (d: DocRow) =>
     recycle ? (
       <button className="btn btn-sm btn-secondary" onClick={() => restore(d.document_id)}>
@@ -92,6 +98,9 @@ export default function DocumentsPage() {
       </button>
     ) : (
       <>
+        <button className="btn btn-sm btn-primary" onClick={() => openDoc(d.document_id)}>
+          <ExternalLink size={14} /> 打开
+        </button>
         <button className="btn btn-sm btn-ghost" onClick={() => download(d.document_id)}>
           <Download size={14} /> 下载
         </button>
