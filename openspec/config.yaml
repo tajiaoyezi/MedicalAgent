@@ -1,0 +1,70 @@
+schema: spec-driven
+
+# 项目上下文（context）：注入到每一个产物（proposal / specs / design / tasks）的生成指令里。
+# 只放“每次生成都用得上”的高信号信息；详细需求一律以主 PRD 为准。
+context: |
+  # 语言约定
+  - 所有 OpenSpec 产物（proposal / specs / design / tasks）与交互回复一律使用简体中文。
+  - 代码标识符、API 名、技术专有名词、文件名保留英文原文，不强行翻译。
+
+  # 产品概述
+  - 项目：MedOffice AI 医疗智能办公空间，面向医院 / 医生 / 科研人员 / 医务行政的医疗智能办公平台。
+  - 形态：完全摒弃 WPS 全家桶，以 ONLYOFFICE Docs 作为在线 Office 底座，自建医疗 Agent、文档中心、医疗知识库 RAG、医学翻译、医疗模板中心，以及（仅路线图中的）医疗数字员工能力。
+  - 主验收闭环：登录 → 医疗空间门户 → 上传论文（PDF / DOCX）→ AIMed（深度文献伴读 / 智能综述生成）→ 文档视觉 / 文本解析 → PubMed 或离线缓存检索 → 生成带引用回答 → 生成在线 Word → 存入文档中心 → ONLYOFFICE 打开 → 医疗 AI 面板润色 / 校对 / 翻译选区 → 用户确认写回 → 保存新版本 → 最近任务恢复。
+
+  # 唯一权威需求源
+  - 仅以 docs/MedOffice_AI_完整产品需求文档_V1.0.md 作为 V1.0 的权威需求源。
+  - docs/MedOffice_AI_遗漏项与补充需求清单_V1.0.md 仅作历史差距追溯与审查检查表，不作为 phase / task 生成输入。
+  - 正文能力描述与第 22 章优先级冲突时，以第 22 章为准。
+
+  # V1.0 范围口径（POC 演示版）
+  - V1.0 为 POC 演示版，目标是在个人机器或内网服务器上完成可部署、可演示、可验收的完整产品闭环，不是医院商用交付。
+  - 只从主 PRD 第 22.1 节「P0 必做」生成 V1.0 POC 的 change / task。
+  - 第 22.2 节（V1.1 路线图）与第 22.3 节（V1.2+ 后续规划）只作 backlog / roadmap，不进入 V1.0 验收。
+  - 医疗数字员工在 V1.0 仅保留导航入口并显示「规划中」，其创建 / 运行 / 编排 / 执行历史一律不生成 V1.0 task（延期 V1.1 / V1.2）。
+
+  # 建议 phase 顺序（主 PRD 0.4 节）
+  foundation → onlyoffice-bridge → model-and-parse → aimed-rag-citation → ai-panel-recent-tasks → knowledge-admin → medical-translation → template-center → security-evidence
+
+  # 技术底座
+  - 在线 Office：ONLYOFFICE Document / Spreadsheet / Presentation / PDF Editor + 文档 Bridge API + 医疗 AI 右侧面板。
+  - 存储：对象存储 MinIO / S3；元数据与业务库 PostgreSQL；向量库 + 全文检索（BM25）。
+  - AI 检索：RAG + Citation 溯源；数据源为 PubMed / 离线 PubMed 缓存 / 用户上传文档 / 医疗知识库。
+  - 文档视觉解析服务：用于扫描 PDF、图片、复杂 PDF、图表、表格与版式抽取（底层可由 OCR / 多模态大模型 / 版面分析 / 表格识别实现）。
+  - 模型 Provider 抽象层：OpenAI-compatible / Anthropic Messages / 本地模型网关 / 第三方；每种模型能力都必须同时提供「公网」与「私有化」两个配置入口，并支持优先级与 fallback。
+  - 离线优先：部署环境可能无公网，任何核心闭环都必须存在离线 / 私有化降级路径（离线 PubMed 缓存、私有化模型、私有化解析与识别服务）。
+  - 数据模型尽量复用主 PRD 第 18 章核心表命名（documents / document_versions / knowledge_bases / document_chunks / translation_jobs / model_providers / audit_logs 等）。
+
+  # 不可违背的产品原则与医疗安全红线
+  - 医学结论必须可溯源，不输出无依据的诊疗建议；生成内容默认是草稿 / 辅助建议，需人工确认。
+  - AI 操作文档必须可确认、可回滚、可审计：写回前展示「原文 / 修改后 / 修改说明 / 影响范围」，并提供「应用到文档 / 生成副本 / 取消」。
+  - 系统不得定位为自动诊断 / 自动处方 / 自动医嘱执行 / 替代医生决策；涉及诊疗、用药、医嘱、临床文书与患者个体信息的高风险内容必须进入医生（或授权审核角色）确认链路。
+  - 多租户隔离 + RBAC + 文档级 ACL + 知识库级 ACL；RAG 检索必须按 tenant_id / kb_id / user_id / role / acl 过滤。
+  - 公网模型调用前必须先做 PHI / PII 识别与脱敏；识别失败、脱敏置信度不足或识别服务不可用时禁止调用公网模型（可切换私有化模型）。
+  - 未授权商业数据库不得默认抓取或导入；URL 导入须经白名单或管理员授权，授权不明确只进临时预览，不写入正式公共知识库。
+  - 所有医学回答与生成文档需展示医疗免责声明。
+
+# 按产物追加的规则（rules）：在该产物自身指令外，额外注入到对应产物的生成指令里。
+# 仅 spec-driven 的合法产物 ID：proposal / specs / design / tasks。
+rules:
+  proposal:
+    - "用简体中文撰写全部内容，保留 Why / What Changes / Capabilities / Impact 结构。"
+    - "每个 change 必须能在主 PRD 第 22.1 节『P0 必做』中找到出处；仅属于 22.2（V1.1）/ 22.3（V1.2+）或只见于遗漏项清单的能力，不立 V1.0 proposal。"
+    - "数字员工的创建 / 运行 / 编排 / 执行历史不立 V1.0 proposal（V1.0 仅保留规划入口）。"
+    - "Capabilities 使用 kebab-case，并尽量对齐建议的 9 个 phase 名（foundation / onlyoffice-bridge / model-and-parse / aimed-rag-citation / ai-panel-recent-tasks / knowledge-admin / medical-translation / template-center / security-evidence）。"
+    - "Impact 必须评估医疗安全、合规、人工确认、脱敏与审计的影响。"
+  specs:
+    - "用简体中文撰写需求与场景；Requirement 用 SHALL / MUST，Scenario 使用恰好 4 个井号（####）与 WHEN / THEN。"
+    - "凡涉及 AI 写回、检索问答、医学翻译、知识库的需求，必须包含可溯源 / 引用定位、写回前用户确认、租户与权限（ACL）过滤的场景。"
+    - "涉及公网模型调用的需求，必须包含 PHI / PII 识别脱敏门禁，以及识别失败时禁用公网模型的负向场景。"
+    - "验收场景应可观测、可测，期望值尽量对齐主 PRD 第 20.3 / 24 章指标（如保存回调成功率、引用定位成功率、医学翻译术语一致性、最近任务恢复成功率等）。"
+  design:
+    - "用简体中文撰写；仅在跨模块、新架构、新外部依赖、安全 / 性能 / 迁移复杂或需提前做技术决策时才创建 design。"
+    - "关键决策需覆盖：ONLYOFFICE 集成与保存回调链路、模型 Provider 公网 / 私有化与 fallback、RAG 与文档视觉解析选型、脱敏与审计的落点。"
+    - "必须给出公网不可用时的离线 / 私有化降级路径（离线 PubMed 缓存、私有化模型、私有化解析与识别服务）。"
+    - "数据模型尽量复用主 PRD 第 18 章的核心表命名。"
+  tasks:
+    - "用简体中文撰写；严格使用 - [ ] X.Y 复选框格式并按 ## 编号分组，未用复选框的任务不会被 apply 阶段跟踪。"
+    - "只拆 V1.0 POC P0 可交付任务，按建议 phase 的依赖顺序排列。"
+    - "每条任务必须可验证，对应一个验收点或主验收闭环步骤。"
+    - "涉及真实外部接入（ONLYOFFICE、PubMed、模型 Provider、文档视觉解析）的任务，必须同时覆盖连通性测试与离线 / 私有化降级演示两条路径。"
