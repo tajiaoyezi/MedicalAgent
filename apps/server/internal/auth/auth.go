@@ -118,6 +118,43 @@ func RequirePermission(perm string) gin.HandlerFunc {
 	}
 }
 
+// Require 复刻 requireAuth 的「在 handler 顶部调用」用法：未登录则写 401「未登录」并返回 false。
+func Require(c *gin.Context) (AuthUser, bool) {
+	u, ok := SessionUser(c)
+	if !ok {
+		httpx.Fail(c, 401, "未登录")
+		return AuthUser{}, false
+	}
+	return u, true
+}
+
+// RequirePerm 复刻 requirePermission 的「在 handler 内调用」用法：缺权限写 403「无权限」并返回 false。
+func RequirePerm(c *gin.Context, u AuthUser, perm string) bool {
+	if !u.HasPermission(perm) {
+		httpx.Fail(c, 403, "无权限")
+		return false
+	}
+	return true
+}
+
+// AdminConsoleGuard 复刻 admin.ts 的 /api/admin preHandler：未登录 401「未登录」；非管理员 403「无权限访问管理后台」。
+// 通过后把当前用户注入 context，供 admin 处理器用 CurrentUser 取用。
+func AdminConsoleGuard() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		u, ok := SessionUser(c)
+		if !ok {
+			httpx.Fail(c, 401, "未登录")
+			return
+		}
+		if !u.HasPermission("admin:console") {
+			httpx.Fail(c, 403, "无权限访问管理后台")
+			return
+		}
+		c.Set(ctxUserKey, u)
+		c.Next()
+	}
+}
+
 // RevokeGuard 复刻 index.ts 全局 preHandler：被吊销用户清会话，且对 /api/*（除 login/health）返回 401「会话已失效」。
 func RevokeGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
