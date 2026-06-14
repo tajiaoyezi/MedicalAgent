@@ -94,6 +94,7 @@ async function seedIfNeeded(client: import("pg").PoolClient) {
     { name: "highrisk:confirm", description: "高风险确认" },
     { name: "template:manage", description: "模板管理" },
     { name: "kb:create", description: "创建知识库" },
+    { name: "model:manage", description: "模型与评测管理" },
   ];
 
   const permIds: Record<string, string> = {};
@@ -124,6 +125,7 @@ async function seedIfNeeded(client: import("pg").PoolClient) {
         "admin:console",
         "template:manage",
         "kb:create",
+        "model:manage",
       ],
     },
     { slug: "user", name: "普通用户", perms: ["document:read", "document:write"] },

@@ -151,7 +151,7 @@ export async function registerPreviewRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "文档不存在" });
       }
 
-      // document_parse_jobs 由 c03 owner 建表；未落地前优雅降级
+      // document_parse_jobs 由 c03 owner 建表（migration 005）；建表前优雅降级避免 42P01
       const reg = await client.query(
         `SELECT to_regclass('public.document_parse_jobs') AS t`,
       );
@@ -163,11 +163,17 @@ export async function registerPreviewRoutes(app: FastifyInstance) {
         };
       }
 
+      // 1.5a：用 document_version + c03 状态词（pending/parsing/succeeded/failed），
+      // JOIN document_visual_parse_results 取结构化结果；去除 stub 列 result/job_type/version_id
       const jobRes = await client.query(
-        `SELECT job_id, status, result, updated_at
-         FROM document_parse_jobs
-         WHERE document_id = $1 AND tenant_id = $2 AND job_type = 'visual'
-         ORDER BY updated_at DESC LIMIT 1`,
+        `SELECT j.job_id, j.status, j.substatus, j.failure_reason, j.document_version,
+                j.index_ready_at, j.updated_at,
+                r.confidence AS visual_confidence, r.failure_reason AS visual_failure_reason
+         FROM document_parse_jobs j
+         LEFT JOIN document_visual_parse_results r
+           ON r.document_id = j.document_id AND r.document_version = j.document_version
+         WHERE j.document_id = $1 AND j.tenant_id = $2
+         ORDER BY j.created_at DESC LIMIT 1`,
         [documentId, user.tenantId],
       );
 
@@ -179,10 +185,18 @@ export async function registerPreviewRoutes(app: FastifyInstance) {
         };
       }
 
+      const row = jobRes.rows[0];
       return {
-        status: jobRes.rows[0].status,
-        result: jobRes.rows[0].result,
-        updatedAt: jobRes.rows[0].updated_at,
+        status: row.status,
+        substatus: row.substatus,
+        documentVersion: row.document_version,
+        failureReason: row.failure_reason,
+        indexReadyAt: row.index_ready_at,
+        updatedAt: row.updated_at,
+        visual:
+          row.visual_confidence !== null || row.visual_failure_reason !== null
+            ? { confidence: row.visual_confidence, failureReason: row.visual_failure_reason }
+            : null,
         jobs: jobRes.rows,
       };
     } finally {

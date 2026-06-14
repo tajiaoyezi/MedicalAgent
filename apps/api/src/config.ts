@@ -21,6 +21,21 @@ function resolveOnlyofficeJwtSecret(): string {
   return "dev-local-onlyoffice-jwt-do-not-deploy";
 }
 
+function resolveModelCredentialSecret(): string {
+  const secret = process.env.MODEL_CREDENTIAL_SECRET?.trim();
+  if (secret) return secret;
+  const nodeEnv = process.env.NODE_ENV ?? "development";
+  if (nodeEnv === "production") {
+    throw new Error(
+      "MODEL_CREDENTIAL_SECRET 必须在生产环境显式配置，禁止使用默认值（用于加密 model_providers 凭据）",
+    );
+  }
+  console.warn(
+    "[config] MODEL_CREDENTIAL_SECRET 未设置，开发环境使用本地占位密钥（仅限本机 POC，勿用于部署）",
+  );
+  return "dev-local-model-credential-do-not-deploy";
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.API_PORT ?? 3001),
@@ -72,5 +87,15 @@ export const config = {
     callbackTokenTtlSeconds: Number(
       process.env.EDITOR_CALLBACK_TTL ?? 7200,
     ),
+  },
+  model: {
+    /** model_providers 凭据加密密钥（AES-256-GCM） */
+    credentialSecret: resolveModelCredentialSecret(),
+    /** 健康状态 TTL：一次抖动不长期拉黑 down 的 provider */
+    healthTtlSeconds: Number(process.env.MODEL_HEALTH_TTL ?? 60),
+    /** 多次连续失败才判 down */
+    healthDownThreshold: Number(process.env.MODEL_HEALTH_DOWN_THRESHOLD ?? 3),
+    /** 后台解析作业轮询间隔（毫秒）；<=0 关闭内置轮询 */
+    parseWorkerIntervalMs: Number(process.env.PARSE_WORKER_INTERVAL_MS ?? 5000),
   },
 };
