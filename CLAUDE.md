@@ -35,6 +35,7 @@ openspec view                          # 交互式 dashboard
 **主分支 `master` 禁止直接提交。**（这是团队/agent 约定；`master` 当前未开 GitHub branch protection，靠本规则自觉执行。）任何改动（含规格、文档、后续实现代码）都走「feature 分支 → PR → 子 agent 审查 → 合入」闭环：
 
 1. **开分支**：从最新 `master` 切 feature 分支（建议命名 `<type>/<scope>`，如 `feat/c01-apply`、`docs/claude-md`、`chore/...`）。若误在 `master` 上改动，先 `git switch -c <branch>` 再提交。
+   - **开分支前先核对 base 已同步**：确认本地 `master` 与 `origin/master` 一致、且本地无未推送的提交（`git fetch origin && git log --oneline origin/master..master` 应为空）。否则这些未推送提交会被一并卷进 PR diff，squash 合并时被压成单个提交（曾因此把 9 个 per-change 提交压平）。如本地 `master` 领先 origin，先单独把它推上去再切分支。
 2. **提交并开 PR**：在 feature 分支提交后 `git push -u origin <branch>`，用 `gh pr create` 开 PR（base=`master`）。提交信息用 **Conventional Commits 前缀 + 简体中文描述**，type/scope 与分支命名一致，如 `feat(spec): c01-foundation — …`、`docs: 新增 …`、`chore(openspec): …`。
 3. **自动派子 agent 审查**：开完 PR **立即用 Claude Code 的 Task/子 agent 能力（Agent 工具）派一个子 agent 审查该 PR**（diff、规格一致性、横切契约对称性、医疗安全红线、`openspec validate --changes --strict`）。子 agent 返回结构化结论：通过 / 有问题（含问题清单与严重级）。*降级口径*：若当前运行时不具备派子 agent 的能力（如纯 CLI / CI），改为人工审查后再合入，不得跳过审查直接合并。
 4. **按结论闭环**：
