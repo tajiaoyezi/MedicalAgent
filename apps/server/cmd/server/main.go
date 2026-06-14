@@ -12,6 +12,7 @@ import (
 
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/db"
+	"medoffice/server/internal/parsing"
 	"medoffice/server/internal/server"
 	"medoffice/server/internal/storage"
 )
@@ -43,10 +44,15 @@ func main() {
 		}
 	}()
 
+	// c03 后台解析 worker（消费 document_events → 建作业 → 执行）。ctx 取消即停。
+	workerCtx, cancelWorker := context.WithCancel(context.Background())
+	parsing.StartWorker(workerCtx, gormDB, parsing.NewEngine(store), cfg.Model.ParseWorkerIntervalMs)
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 	log.Println("shutting down...")
+	cancelWorker()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
