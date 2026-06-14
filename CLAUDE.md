@@ -86,4 +86,4 @@ PRD §0.4 把 V1.0 拆为 9 个有序 phase，逐级依赖（`openspec/changes/c
 
 ## 当前状态
 
-规格已写完并经多轮对抗式审查收敛到 0 high/critical，`openspec validate --changes --strict` 9/9 通过，已逐 change 提交在 `master`。**实现尚未开始** —— 下一步从 `c01-foundation` 起 `/opsx:apply`。
+规格已写完并经多轮对抗式审查收敛到 0 high/critical，`openspec validate --changes --strict` 9/9 通过，已逐 change 提交在 `master`。**c01-foundation 已 apply 落地**；**c02-onlyoffice-bridge 实施中**（PR #11）。下一步：c02 合入后继续 c03 起 `/opsx:apply`。

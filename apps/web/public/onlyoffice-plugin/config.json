@@ -1,0 +1,19 @@
+{
+  "name": "MedOffice Bridge",
+  "guid": "asc.{medoffice-bridge}",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "MedOffice AI document bridge",
+      "url": "code.js",
+      "icons": [],
+      "isViewer": false,
+      "EditorsSupport": ["word", "cell", "slide", "pdf"],
+      "isVisual": false,
+      "isModal": false,
+      "isInsideMode": true,
+      "initDataType": "none",
+      "initOnSelectionChanged": true
+    }
+  ]
+}

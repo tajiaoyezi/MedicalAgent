@@ -32,6 +32,24 @@ services:
       timeout: 5s
       retries: 5
 
+  onlyoffice:
+    image: onlyoffice/documentserver:8.2
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-dev-local-onlyoffice-jwt-do-not-deploy}
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "true"
+    ports:
+      - "8080:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
 volumes:
   medoffice_pg:
   medoffice_minio:
