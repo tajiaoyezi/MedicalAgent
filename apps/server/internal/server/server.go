@@ -11,6 +11,7 @@ import (
 
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/config"
+	"medoffice/server/internal/editor"
 	"medoffice/server/internal/httpx"
 	"medoffice/server/internal/routes"
 	"medoffice/server/internal/storage"
@@ -42,11 +43,16 @@ func New(d Deps) *gin.Engine {
 	r.Use(sessions.Sessions("medoffice_sid", store))
 	r.Use(auth.RevokeGuard())
 
+	editorSvc := editor.NewService(d.Config.OnlyOffice, d.Storage)
+
 	routes.RegisterHealth(r, d.DB)
 	routes.RegisterAuth(r, d.DB)
 	routes.RegisterPortal(r, d.DB)
 	routes.RegisterDocuments(r, d.DB, d.Storage)
 	routes.RegisterRecentTasks(r, d.DB)
 	routes.RegisterAdmin(r, d.DB)
+	routes.RegisterEditor(r, d.DB, d.Storage, editorSvc)
+	routes.RegisterBridge(r, d.DB, editorSvc)
+	routes.RegisterPreview(r, d.DB, d.Storage, d.Config.OnlyOffice)
 	return r
 }
