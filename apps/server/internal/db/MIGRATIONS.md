@@ -1,6 +1,6 @@
 # 数据库迁移编号映射
 
-单一共享迁移序列，按字典序执行。各 change 申请新编号时查阅本表，**禁止撞号**。
+单一共享迁移序列，按字典序执行（`apps/server/internal/db/migrations/*.sql`，`go:embed` 内嵌，`cmd/migrate` 用 pgx 简单协议逐文件执行）。各 change 申请新编号时查阅本表，**禁止撞号**。SQL 文件与原 `apps/api/src/db/migrations/` 字节一致（换栈仅改实现语言，schema 不变）。
 
 | 编号 | change | 内容 |
 |------|--------|------|
@@ -14,7 +14,8 @@
 
 ## 横切契约
 
-- `document_parse_jobs`：**唯一建表 owner = c03**（migration 005，tasks 1.5）。c02 仅只读消费（`preview.ts` parse-status）。
-- c03 apply 已完成 tasks **1.5a**：`preview.ts` parse-status SELECT 改用 `document_version` + c03 状态词 + JOIN `document_visual_parse_results`，去 stub 列 `result`/`job_type`/`version_id`。
-- `model:manage` 权限点由 004 创建并授予 admin；新装库经 `seedIfNeeded` 一并植入，既有库经 004 幂等补授。
+- `document_parse_jobs`：**唯一建表 owner = c03**（migration 005）。c02 仅只读消费（`routes/preview.go` parse-status）。
+- parse-status SELECT 用 `document_version` + c03 状态词 + JOIN `document_visual_parse_results`，无 stub 列（`result`/`job_type`/`version_id`）。
+- `model:manage` 权限点由 004 创建并授予 admin；新装库经 Go `db.Seed`（`internal/db/seed.go`）一并植入，既有库经 004 幂等补授。
 - `embeddings` **无 `tenant_id` 物理列**：租户/`chunk_acl` 维一律经 `chunk_id` 外键从 `document_chunks` 派生（§16.3「embedding 属 chunk 元数据」）。
+- `document_events` 闭合 6 类 event_type：c01/c02 产生（`routes/documents.go`、`editor/service.go`），**c03 纯消费**（`parsing/consumer.go`，不产生）。

@@ -2,18 +2,20 @@
   "name": "medoffice-ai",
   "private": true,
   "workspaces": [
-    "apps/api",
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=apps/api & npm run dev --workspace=apps/web",
-    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:api": "cd apps/server && go run ./cmd/server",
     "dev:web": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web",
-    "migrate": "npm run migrate --workspace=apps/api",
-    "smoke": "npm run smoke --workspace=apps/api",
-    "smoke:onlyoffice": "npm run smoke:onlyoffice --workspace=apps/api",
-    "smoke:editor-authz": "npm run smoke:editor-authz --workspace=apps/api",
-    "demo:editor": "npm run demo:editor --workspace=apps/api"
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "cd apps/server && go build ./...",
+    "build:web": "npm run build --workspace=apps/web",
+    "migrate": "cd apps/server && go run ./cmd/migrate",
+    "smoke": "cd apps/server && go run ./cmd/smoke/infra",
+    "smoke:integration": "cd apps/server && go run ./cmd/smoke/integration",
+    "smoke:authz": "cd apps/server && go run ./cmd/smoke/authz",
+    "smoke:onlyoffice": "cd apps/server && go run ./cmd/smoke/onlyoffice",
+    "smoke:editor-authz": "cd apps/server && go run ./cmd/smoke/editor_authz",
+    "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03"
   }
 }
