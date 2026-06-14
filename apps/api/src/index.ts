@@ -13,6 +13,8 @@ import { registerRecentTasksRoutes } from "./routes/recent-tasks.js";
 import { registerEditorRoutes } from "./routes/editor.js";
 import { registerBridgeRoutes } from "./routes/bridge.js";
 import { registerPreviewRoutes } from "./routes/preview.js";
+import { registerAdminModelRoutes } from "./routes/admin-models.js";
+import { startParseWorker } from "./services/parsing/event-consumer.js";
 import { revokedUserIds } from "./middleware/session-revoke.js";
 import { getSessionUser } from "./middleware/auth.js";
 
@@ -60,6 +62,7 @@ await registerRecentTasksRoutes(app);
 await registerEditorRoutes(app);
 await registerBridgeRoutes(app);
 await registerPreviewRoutes(app);
+await registerAdminModelRoutes(app);
 
 app.setErrorHandler((error, _request, reply) => {
   const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
@@ -71,6 +74,8 @@ app.setErrorHandler((error, _request, reply) => {
 try {
   await app.listen({ port: config.port, host: config.host });
   console.log(`API listening on http://${config.host}:${config.port}`);
+  // c03：启动后台解析 worker（消费 document_events → 创建并执行解析作业）
+  startParseWorker(config.model.parseWorkerIntervalMs);
 } catch (err) {
   app.log.error(err);
   process.exit(1);

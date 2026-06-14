@@ -13,6 +13,7 @@
     "smoke:authz": "tsx src/scripts/authz-smoke.ts",
     "smoke:onlyoffice": "tsx src/scripts/onlyoffice-smoke.ts",
     "smoke:editor-authz": "tsx src/scripts/editor-authz-smoke.ts",
+    "smoke:c03": "tsx src/scripts/c03-smoke.ts",
     "demo:editor": "tsx src/scripts/e2e-editor-demo.ts"
   },
   "dependencies": {
