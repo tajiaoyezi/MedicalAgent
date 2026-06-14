@@ -23,33 +23,60 @@ export async function dispatchPendingEvents(client: PoolClient): Promise<number>
 
   let created = 0;
   for (const ev of rows) {
-    const jobRes = await client.query(
-      `INSERT INTO document_parse_jobs (tenant_id, document_id, document_version, status, triggered_by)
-       VALUES ($1, $2, $3, 'pending', $4)
-       RETURNING job_id`,
-      [ev.tenant_id, ev.document_id, ev.document_version, ev.event_type],
-    );
-    await client.query(
-      `INSERT INTO document_event_consumptions (event_id, consumer) VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
-      [ev.event_id, CONSUMER],
-    );
-    await writeAudit(client, {
-      tenantId: ev.tenant_id,
-      actionType: "parse_job",
-      targetType: "document",
-      targetId: ev.document_id,
-      result: "成功",
-      metadata: {
-        jobId: jobRes.rows[0].job_id,
-        documentVersion: ev.document_version,
-        status: "pending",
-        triggeredBy: ev.event_type,
-      },
-    });
-    created++;
+    // 每个事件的「建作业 + 标记已消费 + 审计」放入单事务：
+    // 崩溃于二者之间不会留下未消费但已建作业的状态；消费冲突（并发/已消费）则整体回滚，杜绝重复作业。
+    try {
+      await client.query("BEGIN");
+      const jobRes = await client.query(
+        `INSERT INTO document_parse_jobs (tenant_id, document_id, document_version, status, triggered_by)
+         VALUES ($1, $2, $3, 'pending', $4)
+         RETURNING job_id`,
+        [ev.tenant_id, ev.document_id, ev.document_version, ev.event_type],
+      );
+      const cons = await client.query(
+        `INSERT INTO document_event_consumptions (event_id, consumer) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [ev.event_id, CONSUMER],
+      );
+      if (!cons.rowCount) {
+        // 该事件已被消费（并发 dispatcher）→ 回滚刚建的作业，避免重复
+        await client.query("ROLLBACK");
+        continue;
+      }
+      await writeAudit(client, {
+        tenantId: ev.tenant_id,
+        actionType: "parse_job",
+        targetType: "document",
+        targetId: ev.document_id,
+        result: "成功",
+        metadata: {
+          jobId: jobRes.rows[0].job_id,
+          documentVersion: ev.document_version,
+          status: "pending",
+          triggeredBy: ev.event_type,
+        },
+      });
+      await client.query("COMMIT");
+      created++;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      console.error("[parse-dispatch] 事件消费失败:", (e as Error).message);
+    }
   }
   return created;
+}
+
+/** 回收因进程崩溃滞留在 parsing 的作业：超过阈值重置为 pending 由下一轮重新执行。 */
+const STUCK_PARSING_MS = 10 * 60 * 1000;
+export async function reclaimStuckJobs(client: PoolClient): Promise<number> {
+  const res = await client.query(
+    `UPDATE document_parse_jobs
+     SET status = 'pending', substatus = NULL, updated_at = NOW()
+     WHERE status = 'parsing' AND started_at IS NOT NULL
+       AND started_at < NOW() - ($1::bigint * INTERVAL '1 millisecond')`,
+    [STUCK_PARSING_MS],
+  );
+  return res.rowCount ?? 0;
 }
 
 /** 取 pending 作业并依次执行。runParseJob 内部已捕获异常并落 failed，不会中断循环。 */
@@ -73,12 +100,13 @@ export async function runPendingJobs(client: PoolClient, limit = 20): Promise<nu
 }
 
 /** 一轮 tick：消费事件 + 执行 pending 作业（供后台轮询与冒烟脚本调用）。 */
-export async function parseTick(): Promise<{ dispatched: number; ran: number }> {
+export async function parseTick(): Promise<{ reclaimed: number; dispatched: number; ran: number }> {
   const client = await pool.connect();
   try {
+    const reclaimed = await reclaimStuckJobs(client);
     const dispatched = await dispatchPendingEvents(client);
     const ran = await runPendingJobs(client);
-    return { dispatched, ran };
+    return { reclaimed, dispatched, ran };
   } finally {
     client.release();
   }

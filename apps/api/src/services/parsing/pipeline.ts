@@ -161,11 +161,12 @@ export async function runParseJob(client: PoolClient, job: ParseJob): Promise<"s
     // 写库（最终事务，一次写入；失败整体回滚不残留半成品）
     await client.query("BEGIN");
     try {
-      // 重解析幂等：旧 chunk 标记 superseded 保留版本可溯源（task 7.11）
+      // 重解析幂等（task 7.11「以 version 去重」）：仅 supersede 本版本及更早版本的旧 chunk，
+      // 保留版本可溯源；作业乱序执行时不会让旧版本覆盖更新版本的活跃 chunk。
       await client.query(
         `UPDATE document_chunks SET superseded = TRUE
-         WHERE document_id = $1 AND superseded = FALSE`,
-        [job.documentId],
+         WHERE document_id = $1 AND superseded = FALSE AND document_version <= $2`,
+        [job.documentId, job.documentVersion],
       );
       for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
