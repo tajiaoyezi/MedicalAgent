@@ -22,10 +22,11 @@ type Deps struct {
 	Storage *storage.Storage
 }
 
-// New 构造引擎。PR0 仅挂 health；后续 PR 在此追加路由注册。
+// New 构造引擎。中间件顺序复刻 index.ts，再挂各 register*Routes。
 func New(d Deps) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	r.MaxMultipartMemory = 50 << 20 // 与 @fastify/multipart fileSize 50MB 对齐
 	r.Use(gin.Logger())
 	r.Use(httpx.Recovery())
 	r.Use(httpx.CORS(d.Config.WebOrigin))
@@ -42,5 +43,10 @@ func New(d Deps) *gin.Engine {
 	r.Use(auth.RevokeGuard())
 
 	routes.RegisterHealth(r, d.DB)
+	routes.RegisterAuth(r, d.DB)
+	routes.RegisterPortal(r, d.DB)
+	routes.RegisterDocuments(r, d.DB, d.Storage)
+	routes.RegisterRecentTasks(r, d.DB)
+	routes.RegisterAdmin(r, d.DB)
 	return r
 }
