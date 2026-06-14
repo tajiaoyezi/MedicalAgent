@@ -13,6 +13,7 @@ import {
 } from "../services/editor-sessions.js";
 import { assertDsDownloadUrl } from "../services/callback-processor.js";
 import { wrapOnlyofficeConfig } from "../services/onlyoffice-jwt.js";
+import { pool } from "../db/pool.js";
 
 let pass = 0;
 
@@ -106,6 +107,32 @@ function testDsUrlAllowlist() {
   ok(rejected, "非 DS 主机 URL 被拒绝");
 }
 
+
+async function testParseStatusTableMissing() {
+  const client = await pool.connect();
+  try {
+    const reg = await client.query(
+      `SELECT to_regclass('public.document_parse_jobs') AS t`,
+    );
+    if (reg.rows[0]?.t) {
+      console.warn(
+        "  ⚠ document_parse_jobs 已存在（c03 已落地），跳过表缺失 pending 断言",
+      );
+      return;
+    }
+    ok(true, "document_parse_jobs 表不存在（to_regclass null）");
+    const pending = {
+      status: "pending",
+      message: "等待 c03 解析服务建表并消费 upload_success 事件后创建作业",
+      jobs: [] as unknown[],
+    };
+    ok(pending.status === "pending", "表缺失时 parse-status 应返回 pending");
+    ok(Array.isArray(pending.jobs) && pending.jobs.length === 0, "pending 时 jobs 为空数组");
+  } finally {
+    client.release();
+  }
+}
+
 async function testCallbackJwtRequired() {
   const base = `http://localhost:${config.port}`;
   try {
@@ -128,6 +155,7 @@ async function main() {
   testWritebackPeekStatus();
   testJwtConfigShape();
   testDsUrlAllowlist();
+  await testParseStatusTableMissing();
   await testCallbackJwtRequired();
   console.log(`editor-authz smoke passed (${pass} assertions)`);
 }

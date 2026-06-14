@@ -151,6 +151,18 @@ export async function registerPreviewRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "文档不存在" });
       }
 
+      // document_parse_jobs 由 c03 owner 建表；未落地前优雅降级
+      const reg = await client.query(
+        `SELECT to_regclass('public.document_parse_jobs') AS t`,
+      );
+      if (!reg.rows[0]?.t) {
+        return {
+          status: "pending",
+          message: "等待 c03 解析服务建表并消费 upload_success 事件后创建作业",
+          jobs: [],
+        };
+      }
+
       const jobRes = await client.query(
         `SELECT job_id, status, result, updated_at
          FROM document_parse_jobs

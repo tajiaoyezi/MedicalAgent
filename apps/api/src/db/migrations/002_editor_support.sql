@@ -1,19 +1,6 @@
--- c02 editor support: parse job read stub (owner=c03) + conversion cache
-
-CREATE TABLE IF NOT EXISTS document_parse_jobs (
-  job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
-  version_id UUID NOT NULL REFERENCES document_versions(version_id) ON DELETE CASCADE,
-  tenant_id UUID NOT NULL REFERENCES tenants(tenant_id),
-  job_type TEXT NOT NULL CHECK (job_type IN ('visual', 'text', 'full')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (
-    status IN ('pending', 'running', 'completed', 'failed')
-  ),
-  result JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (document_id, version_id, job_type)
-);
+-- c02 editor support: conversion cache only
+-- document_parse_jobs owner=c03（tasks 1.5），c02 不在此建表
+-- 历史 stub 由 003 清理；全仓无 writer，stub 恒空，DROP 安全
 
 CREATE TABLE IF NOT EXISTS editor_conversion_cache (
   source_hash TEXT PRIMARY KEY,

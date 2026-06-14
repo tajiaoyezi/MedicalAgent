@@ -159,7 +159,7 @@ ONLYOFFICE Editor → callbackUrl(业务回调端点)
 - 触发：产生 `document_events`（`save_new_version`/`ai_writeback`）供 c03 消费；下游 `document_parse_jobs`/`document_chunks`/`embeddings` 由 c03 创建与消费，c02 不直接写解析作业表。
 - 审计：`audit_logs`。
 - 只消费不改结构：`users`/`tenants`/`roles`/`permissions`（c01 建立）。
-- 本期不新建超出 §18 的核心表；回调凭证/open_token 等为运行态短时态数据，落缓存或随版本上下文，不进核心表。
+- 本期不新建超出 §18 的核心表；回调凭证/open_token 等为运行态短时态数据，落缓存或随版本上下文，不进核心表。OFD 等旧格式转换结果按 `file_hash` 缓存，以非 §18 附属小表 `editor_conversion_cache` 落地（见 D8，仅 c02 OFD 预览路径读写）。
 
 ## Risks / Trade-offs
 
