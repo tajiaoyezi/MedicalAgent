@@ -3,6 +3,7 @@ package parsing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -63,7 +64,17 @@ func (e *Engine) failJob(db *gorm.DB, job ParseJob, reason string) {
 }
 
 // RunParseJob 运行单作业；内部捕获所有异常并落 failed，不向外抛（供 worker 循环安全调用）。
-func (e *Engine) RunParseJob(db *gorm.DB, job ParseJob) string {
+// 顶层 recover 兜底意外 panic（如 nil 解引用），使单作业失败不中断整轮 tick。
+func (e *Engine) RunParseJob(db *gorm.DB, job ParseJob) (result string) {
+	defer func() {
+		if r := recover(); r != nil {
+			func() {
+				defer func() { _ = recover() }()
+				e.failJob(db, job, fmt.Sprintf("解析异常(panic)：%v", r))
+			}()
+			result = "failed"
+		}
+	}()
 	res, err := e.runInner(db, job)
 	if err != nil {
 		reason := "解析异常：" + err.Error()

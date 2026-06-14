@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -69,14 +70,26 @@ type ProviderConnection struct {
 	NetworkPolicy  string
 }
 
-var privateHostRE = regexp.MustCompile(`(?i)^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|host\.docker\.internal$|.*\.local$|.*\.internal$|.*\.svc$|.*\.svc\.cluster\.local$)`)
-
+// IsPrivateHost：仅内网/回环目标视为「私有」。比 Node 正则更严（医疗红线：私有/离线 provider 不得出公网）：
+// IP 字面量按 CIDR 判定，显式拒绝 169.254/链路本地（云元数据 169.254.169.254）与 0.0.0.0；
+// 主机名按锚定 DNS 后缀白名单（避免 10.evil.com / 127.0.0.1.evil.com 前缀绕过）。
 func IsPrivateHost(hostname string) bool {
-	h := strings.ToLower(hostname)
-	if h == "host.docker.internal" {
+	h := strings.ToLower(strings.TrimSuffix(hostname, "."))
+	if h == "localhost" || h == "host.docker.internal" {
 		return true
 	}
-	return privateHostRE.MatchString(h)
+	if ip := net.ParseIP(h); ip != nil {
+		if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+			return false // 拒绝 169.254/fe80（云元数据）与 0.0.0.0/::
+		}
+		return ip.IsLoopback() || ip.IsPrivate() // 127/8、::1、RFC1918、fc00::/7
+	}
+	for _, suffix := range []string{".local", ".internal", ".svc"} { // .svc.cluster.local 由 .local 覆盖
+		if strings.HasSuffix(h, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // EnforceNetworkPolicy：私有化 provider 命中 deny_egress/intranet_only 时，公网域名目标被拦截。
@@ -131,10 +144,30 @@ func ProviderFetch(conn ProviderConnection, path string, body any, headers map[s
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	res, err := http.DefaultClient.Do(req)
+	// 重定向亦须再过网络策略（防 302 至公网/元数据绕过出网网关）；跨主机跳转剥离鉴权头。
+	client := &http.Client{
+		CheckRedirect: func(rreq *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return newProviderError(ErrHTTP5xx, "重定向过多")
+			}
+			if err := EnforceNetworkPolicy(conn, rreq.URL); err != nil {
+				return err
+			}
+			if len(via) > 0 && rreq.URL.Host != via[0].URL.Host {
+				rreq.Header.Del("Authorization")
+				rreq.Header.Del("x-api-key")
+			}
+			return nil
+		},
+	}
+	res, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, newProviderError(ErrTimeout, fmt.Sprintf("provider「%s」请求超时（%dms）", conn.Name, conn.TimeoutMs))
+		}
+		var pe *ProviderError
+		if errors.As(err, &pe) { // 重定向触发的网络策略拦截，保留错误类别
+			return nil, pe
 		}
 		return nil, newProviderError(ErrHTTP5xx, fmt.Sprintf("provider「%s」连接失败：%s", conn.Name, err.Error()))
 	}

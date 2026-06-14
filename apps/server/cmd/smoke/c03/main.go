@@ -223,8 +223,7 @@ func main() {
 	okAssert(!fb.CreatedAt.IsZero(), "fallback 审计记录存在")
 	var meta map[string]any
 	_ = json.Unmarshal(fb.Metadata, &meta)
-	_, hasTo := meta["toProvider"]
-	okAssert(meta["fromProvider"] != nil && fb.FailureReason != nil && *fb.FailureReason != "" && hasTo && !fb.CreatedAt.IsZero(),
+	okAssert(meta["fromProvider"] != nil && fb.FailureReason != nil && *fb.FailureReason != "" && meta["toProvider"] != nil && !fb.CreatedAt.IsZero(),
 		"fallback 四要素齐全（provider / 失败原因 / 切换目标 / 时间戳 created_at）")
 
 	fmt.Println("\n[4] 用途未绑定时拒绝调用（3.2）")
