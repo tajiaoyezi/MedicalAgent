@@ -62,6 +62,12 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<ThemeId>("blue-white");
 
+  // Inject default theme tokens on mount so pre-auth screens (login) are themed.
+  useEffect(() => {
+    applyTheme(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     async function init() {
       try {

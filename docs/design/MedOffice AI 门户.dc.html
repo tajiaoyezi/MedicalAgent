@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--color-bg,#eef3fb);color:var(--color-text,#16233b);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-size:14px;line-height:1.6}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes shimmer{0%{background-position:-450px 0}100%{background-position:450px 0}}
+  @keyframes ecg{0%{stroke-dashoffset:600}100%{stroke-dashoffset:0}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--color-border-strong,#cdd6e4);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--color-text-3,#8a98b0);background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::selection{background:var(--color-primary-soft,#e8f1ff)}
+</style>
+</helmet>
+
+<div style="height:100vh;width:100%;overflow:hidden;background:var(--color-bg,#eef3fb);color:var(--color-text,#16233b)">
+
+  <!-- ================= LOGIN ================= -->
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+  <div style="height:100vh;width:100%;display:flex">
+    <!-- brand panel -->
+    <div style="flex:1.05;min-width:0;position:relative;overflow:hidden;background:linear-gradient(150deg,#0d1f38 0%,#0a1830 55%,#0b2a52 100%);display:flex;flex-direction:column;justify-content:space-between;padding:56px 60px;color:#dce6f7">
+      <div style="position:absolute;inset:0;opacity:.5;background:radial-gradient(620px 420px at 78% 12%,rgba(22,119,255,.30),transparent 60%),radial-gradient(520px 380px at 12% 88%,rgba(22,119,255,.16),transparent 60%)"></div>
+      <svg viewBox="0 0 600 200" preserveAspectRatio="none" style="position:absolute;left:0;right:0;top:46%;width:100%;height:160px;opacity:.5">
+        <polyline points="0,100 120,100 150,100 168,55 188,150 210,82 232,100 600,100" fill="none" stroke="#3d8bff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="600" style="animation:ecg 4s linear infinite"/>
+      </svg>
+      <div style="position:relative;display:flex;align-items:center;gap:13px">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#1677ff,#0a5fe0);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(22,119,255,.45)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:.3px;color:#fff">MedOffice AI</div>
+          <div style="font-size:12px;color:#7d93b8;letter-spacing:2px">医疗智能办公空间</div>
+        </div>
+      </div>
+      <div style="position:relative">
+        <div style="font-size:34px;font-weight:700;line-height:1.32;color:#fff;letter-spacing:.5px">让每一个临床结论<br/>都<span style="color:#5fa0ff">可追溯、可信赖</span></div>
+        <div style="margin-top:18px;font-size:15px;color:#9fb4d4;max-width:430px;line-height:1.85">深度文献伴读 · 循证证据溯源 · 在线 Office 协作 · 医学翻译与润色，为临床医生、科研人员与医务行政打造的可信 AI 工作空间。</div>
+        <div style="margin-top:30px;display:flex;flex-direction:column;gap:13px">
+          <div style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#bcccea"><span style="width:22px;height:22px;border-radius:6px;background:rgba(95,160,255,.16);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span>每条 AI 结论附 PubMed / 文献来源角标</div>
+          <div style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#bcccea"><span style="width:22px;height:22px;border-radius:6px;background:rgba(95,160,255,.16);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span>AI 写回文档前必须人工确认，绝不静默修改</div>
+          <div style="display:flex;align-items:center;gap:11px;font-size:13.5px;color:#bcccea"><span style="width:22px;height:22px;border-radius:6px;background:rgba(95,160,255,.16);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span>公网调用前 PHI/PII 脱敏门禁 · 支持私有化降级</div>
+        </div>
+      </div>
+      <div style="position:relative;font-size:11.5px;color:#5f7194;line-height:1.7;max-width:460px">免责声明：本平台 AI 输出为辅助性草稿，不构成诊断、处方或医嘱，最终决策须由具备资质的医师负责。</div>
+    </div>
+    <!-- login card -->
+    <div style="flex:.95;min-width:430px;display:flex;align-items:center;justify-content:center;background:var(--color-surface,#fff);padding:40px">
+      <div style="width:340px;animation:fadeUp .5s ease both">
+        <div style="font-size:24px;font-weight:700;color:var(--color-text,#16233b)">欢迎登录</div>
+        <div style="margin-top:8px;font-size:13.5px;color:var(--color-text-2,#56657f)">使用机构账号进入医疗智能办公空间</div>
+        <div style="margin-top:30px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--color-text-2,#56657f);margin-bottom:7px">用户名</label>
+          <div style="display:flex;align-items:center;gap:9px;height:44px;padding:0 13px;border:1px solid var(--color-border,#e3e9f2);border-radius:10px;background:var(--color-surface,#fff)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+            <span style="font-size:14px;color:var(--color-text,#16233b)">dr.zhang</span>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <label style="display:block;font-size:13px;font-weight:600;color:var(--color-text-2,#56657f);margin-bottom:7px">口令</label>
+          <div style="display:flex;align-items:center;gap:9px;height:44px;padding:0 13px;border:1px solid var(--color-border,#e3e9f2);border-radius:10px;background:var(--color-surface,#fff)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            <span style="font-size:14px;letter-spacing:3px;color:var(--color-text,#16233b)">••••••••</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+          <span style="display:flex;align-items:center;gap:7px;color:var(--color-text-2,#56657f)"><span style="width:16px;height:16px;border-radius:5px;background:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span>记住登录</span>
+          <span style="color:var(--color-primary,#1677ff);font-weight:600;cursor:pointer">忘记口令？</span>
+        </div>
+        <button onClick="{{ doLogin }}" style="margin-top:24px;width:100%;height:46px;border:none;border-radius:11px;background:var(--color-primary,#1677ff);color:#fff;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 8px 20px rgba(22,119,255,.32);display:flex;align-items:center;justify-content:center;gap:9px;transition:background .15s" style-hover="background:var(--color-primary-hover,#4096ff)">
+          <sc-if value="{{ loginLoading }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" style="animation:spin .8s linear infinite"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg></sc-if>
+          <span>{{ loginBtnLabel }}</span>
+        </button>
+        <div style="margin-top:18px;padding:12px 14px;border-radius:10px;background:var(--color-primary-softer,#f2f7ff);border:1px solid var(--color-primary-soft,#e8f1ff);font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.7">
+          <span style="font-weight:600;color:var(--color-primary,#1677ff)">演示账号</span>　dr.zhang / demo1234　（点击「登录」直接进入）
+        </div>
+        <div style="margin-top:26px;text-align:center;font-size:11.5px;color:var(--color-text-3,#8a98b0);line-height:1.7">登录即表示同意《数据安全与合规使用条款》<br/>AI 输出为辅助草稿，不替代医师诊断与处方。</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ================= PORTAL SHELL ================= -->
+  <sc-if value="{{ authed }}" hint-placeholder-val="{{ false }}">
+  <div style="height:100vh;width:100%;display:flex;overflow:hidden">
+
+    <!-- SIDEBAR -->
+    <aside style="{{ sidebarStyle }}">
+      <div style="height:60px;display:flex;align-items:center;gap:11px;padding:0 16px;flex-shrink:0;border-bottom:1px solid var(--color-nav-border,rgba(255,255,255,.08))">
+        <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#0a5fe0);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(22,119,255,.4)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>
+        </div>
+        <div style="{{ brandLabelStyle }}">
+          <div style="font-size:15px;font-weight:700;color:#fff;line-height:1.2">MedOffice AI</div>
+          <div style="font-size:10.5px;color:var(--color-nav-text,#9bacc9);letter-spacing:1.5px">医疗智能办公空间</div>
+        </div>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 0">
+        <div style="{{ navGroupLabelStyle }}">工作空间</div>
+        <div onClick="{{ act.aimed }}" style="{{ nav.aimed }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="AIMed 学术助手">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="4" width="18" height="13" rx="2.5"/><polyline points="8 17 8 21 13 17"/><path d="M9 9.5l1 2 1-2"/><path d="M14 8.5v4"/></svg>
+          <span style="{{ navItemLabelStyle }}">AIMed 学术助手</span>
+        </div>
+        <div onClick="{{ act.kb }}" style="{{ nav.kb }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="医疗知识库">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5V4.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/></svg>
+          <span style="{{ navItemLabelStyle }}">医疗知识库</span>
+        </div>
+        <div style="{{ nav.agent }}" title="医疗数字员工（规划中）">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="4" y="8" width="16" height="11" rx="2.5"/><circle cx="9.5" cy="13.5" r="1"/><circle cx="14.5" cy="13.5" r="1"/><path d="M12 4v4"/><circle cx="12" cy="3.4" r="1.3"/></svg>
+          <span style="{{ navItemLabelStyle }}">医疗数字员工</span>
+          <span style="{{ plannedTagStyle }}">规划中</span>
+        </div>
+        <div onClick="{{ act.translate }}" style="{{ nav.translate }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="医学翻译">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M4 5h7"/><path d="M7.5 5c0 4-1.5 7-4 8.5"/><path d="M5 9.5c0 2.5 2.5 4.5 5.5 5"/><path d="M12 20l4-9 4 9"/><path d="M13.4 17h5.2"/></svg>
+          <span style="{{ navItemLabelStyle }}">医学翻译</span>
+        </div>
+        <div onClick="{{ act.templates }}" style="{{ nav.templates }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="医疗模板库">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="4" y="4" width="16" height="5" rx="1.5"/><rect x="4" y="11" width="7" height="9" rx="1.5"/><rect x="13" y="11" width="7" height="9" rx="1.5"/></svg>
+          <span style="{{ navItemLabelStyle }}">医疗模板库</span>
+        </div>
+
+        <div style="{{ navGroupLabelStyle }}">文档与任务</div>
+        <div onClick="{{ act.docs }}" style="{{ nav.docs }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="文档中心">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/></svg>
+          <span style="{{ navItemLabelStyle }}">文档中心</span>
+        </div>
+        <div onClick="{{ act.recent }}" style="{{ nav.recent }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="最近任务">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8"/><polyline points="3.5 4 3.5 8 7.5 8"/><polyline points="12 8 12 12 15 13.6"/></svg>
+          <span style="{{ navItemLabelStyle }}">最近任务</span>
+        </div>
+
+        <div style="{{ navGroupLabelStyle }}">管理</div>
+        <div onClick="{{ act.admin }}" style="{{ nav.admin }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="管理后台">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><polyline points="9 12 11.3 14.3 15.5 9.8"/></svg>
+          <span style="{{ navItemLabelStyle }}">管理后台</span>
+          <span style="{{ adminTagStyle }}">Admin</span>
+        </div>
+        <div onClick="{{ act.states }}" style="{{ nav.states }}" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))" title="通用状态演示">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span style="{{ navItemLabelStyle }}">通用态演示</span>
+        </div>
+      </div>
+
+      <!-- sidebar footer: user + theme + logout -->
+      <div style="flex-shrink:0;border-top:1px solid var(--color-nav-border,rgba(255,255,255,.08));padding:12px 12px">
+        <div style="{{ themeSwitchWrapStyle }}">
+          <span onClick="{{ thAct.blue }}" title="临床蓝" style="{{ thStyle.blue }}"></span>
+          <span onClick="{{ thAct.green }}" title="人文绿" style="{{ thStyle.green }}"></span>
+          <span onClick="{{ thAct.dark }}" title="科技深色" style="{{ thStyle.dark }}"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;margin-top:8px;cursor:pointer" style-hover="background:var(--color-nav-hover-bg,rgba(255,255,255,.06))">
+          <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#0a5fe0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">张</div>
+          <div style="{{ navItemLabelStyle }};min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">张明 医师</div>
+            <div style="font-size:11px;color:var(--color-nav-text,#9bacc9)">心血管内科 · 管理员</div>
+          </div>
+          <svg onClick="{{ logout }}" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-nav-text,#9bacc9)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="{{ navItemLabelStyle }};flex-shrink:0" title="退出登录"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><polyline points="10 8 14 12 10 16"/><line x1="14" y1="12" x2="4" y2="12"/></svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN COLUMN -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;background:var(--color-bg,#eef3fb)">
+      <!-- TOPBAR -->
+      <header style="height:60px;flex-shrink:0;background:var(--color-surface,#fff);border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;gap:18px;padding:0 22px;z-index:20">
+        <button onClick="{{ toggleNav }}" style="width:34px;height:34px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--color-text-2,#56657f)" style-hover="background:var(--color-surface-3,#eff3f9)">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span style="font-size:13px;color:var(--color-text-3,#8a98b0)">{{ crumbModule }}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+          <span style="font-size:15px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pageTitle }}</span>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:9px;height:38px;width:280px;padding:0 13px;border:1px solid var(--color-border,#e3e9f2);border-radius:10px;background:var(--color-surface-2,#f7f9fd);color:var(--color-text-3,#8a98b0)" style-focus="box-shadow:var(--ring)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <span style="font-size:13.5px">搜索文档、文献、模板…</span>
+          <span style="margin-left:auto;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--color-border,#e3e9f2);border-radius:5px;padding:1px 5px;color:var(--color-text-3,#8a98b0)">⌘K</span>
+        </div>
+        <!-- compliance status -->
+        <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border-radius:9px;background:var(--color-success-soft,#e6f6ed);color:var(--color-success,#16a05c);font-size:12.5px;font-weight:600" title="PHI/PII 脱敏门禁已启用">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><polyline points="9 12 11.3 14.3 15.5 9.8"/></svg>
+          脱敏门禁已启用
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;height:34px;padding:0 11px;border-radius:9px;background:var(--color-primary-softer,#f2f7ff);color:var(--color-primary,#1677ff);font-size:12.5px;font-weight:600" title="当前生效模型环境">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--color-primary,#1677ff);animation:blink 2s ease infinite"></span>私有化模型
+        </div>
+        <div style="width:1px;height:26px;background:var(--color-border,#e3e9f2)"></div>
+        <div onClick="{{ toggleUserMenu }}" style="position:relative;display:flex;align-items:center;gap:9px;cursor:pointer;padding:4px 6px;border-radius:9px" style-hover="background:var(--color-surface-3,#eff3f9)">
+          <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#0a5fe0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">张</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <sc-if value="{{ showUserMenu }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:48px;right:0;width:208px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;z-index:50;animation:fadeUp .15s ease both">
+            <div style="padding:10px 12px;border-bottom:1px solid var(--color-divider,#eef2f8);margin-bottom:4px"><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">张明 医师</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">zhang.ming@hospital.cn</div></div>
+            <div style="padding:9px 12px;border-radius:8px;font-size:13.5px;color:var(--color-text,#16233b);cursor:pointer;display:flex;align-items:center;gap:9px" style-hover="background:var(--color-surface-3,#eff3f9)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>个人资料</div>
+            <div onClick="{{ act.admin }}" style="padding:9px 12px;border-radius:8px;font-size:13.5px;color:var(--color-text,#16233b);cursor:pointer;display:flex;align-items:center;gap:9px" style-hover="background:var(--color-surface-3,#eff3f9)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.3 2.5h4l.3-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12z"/></svg>系统设置</div>
+            <div onClick="{{ logout }}" style="padding:9px 12px;border-radius:8px;font-size:13.5px;color:var(--color-danger,#e23b3b);cursor:pointer;display:flex;align-items:center;gap:9px" style-hover="background:var(--color-danger-soft,#fdecec)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><polyline points="10 8 14 12 10 16"/><line x1="14" y1="12" x2="4" y2="12"/></svg>退出登录</div>
+          </div>
+          </sc-if>
+        </div>
+      </header>
+
+      <!-- CONTENT SCROLL -->
+      <div style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative">
+
+        <!-- ===== AIMED WORKSTATION ===== -->
+        <sc-if value="{{ isAimed }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="AIMed 工作台" style="height:100%;display:flex;flex-direction:column">
+          <!-- mode switcher -->
+          <div style="flex-shrink:0;background:var(--color-surface,#fff);border-bottom:1px solid var(--color-border,#e3e9f2);padding:14px 22px">
+            <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:2px">
+              <div onClick="{{ mAct.general }}" style="{{ mStyle.general }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M4 5h16v10H9l-4 4V5z"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">通用问答</div><div style="font-size:11px;opacity:.7;white-space:nowrap">开放式医学问答</div></div></div>
+              <div onClick="{{ mAct.review }}" style="{{ mStyle.review }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 6c-2-1.5-5-1.5-7 0v12c2-1.5 5-1.5 7 0M12 6c2-1.5 5-1.5 7 0v12c-2-1.5-5-1.5-7 0M12 6v12"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">深度文献伴读</div><div style="font-size:11px;opacity:.7;white-space:nowrap">逐篇精读 · 伴随式解读</div></div></div>
+              <div onClick="{{ mAct.landscape }}" style="{{ mStyle.landscape }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="4 16 9 11 13 14 20 6"/><polyline points="15 6 20 6 20 11"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">科研态势分析</div><div style="font-size:11px;opacity:.7;white-space:nowrap">领域热点与趋势洞察</div></div></div>
+              <div onClick="{{ mAct.evidence }}" style="{{ mStyle.evidence }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><circle cx="11" cy="11" r="2.5"/><line x1="13" y1="13" x2="15" y2="15"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">循证证据溯源</div><div style="font-size:11px;opacity:.7;white-space:nowrap">证据分级与来源回溯</div></div></div>
+              <div onClick="{{ mAct.synthesis }}" style="{{ mStyle.synthesis }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16.5l8 4 8-4"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">智能综述生成</div><div style="font-size:11px;opacity:.7;white-space:nowrap">结构化文献综述草稿</div></div></div>
+              <div onClick="{{ mAct.writing }}" style="{{ mStyle.writing }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M5 19l2-6L17 3l4 4L11 17l-6 2z"/><line x1="14" y1="6" x2="18" y2="10"/></svg><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap">学术写作辅助</div><div style="font-size:11px;opacity:.7;white-space:nowrap">投稿润色与表达优化</div></div></div>
+            </div>
+          </div>
+
+          <!-- body: sources + chat -->
+          <div style="flex:1;display:flex;min-height:0">
+            <!-- sources -->
+            <div style="width:288px;flex-shrink:0;border-right:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:16px 18px 10px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--color-text-3,#8a98b0);text-transform:uppercase">数据源 · 当前模式</div>
+                <div style="margin-top:4px;font-size:12px;color:var(--color-text-2,#56657f)">{{ modeSourceHint }}</div>
+              </div>
+              <div style="padding:0 14px;display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ sources }}" as="s" hint-placeholder-count="4">
+                  <div style="{{ s.style }}">
+                    <span style="{{ s.boxStyle }}"><sc-if value="{{ s.checked }}" hint-placeholder-val="{{ true }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></sc-if></span>
+                    <div style="min-width:0;flex:1"><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);display:flex;align-items:center;gap:6px">{{ s.label }}</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0);margin-top:1px">{{ s.desc }}</div></div>
+                    <span style="{{ s.tagStyle }}">{{ s.tag }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <!-- upload + parse -->
+              <div style="margin:14px;padding:14px;border:1.5px dashed var(--color-border-strong,#cdd6e4);border-radius:12px;background:var(--color-surface-2,#f7f9fd)">
+                <div style="display:flex;align-items:center;gap:9px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">上传论文 PDF / DOCX</div></div>
+                <!-- parsed file -->
+                <div style="margin-top:12px;padding:10px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2)">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="width:26px;height:26px;border-radius:7px;background:var(--color-danger-soft,#fdecec);color:var(--color-danger,#e23b3b);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PDF</span><div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">HFpEF_SGLT2_2023.pdf</div><div style="font-size:11px;color:var(--color-success,#16a05c)">解析完成 · 24 页 · 已建索引</div></div></div>
+                  <div style="margin-top:9px;height:5px;border-radius:3px;background:var(--color-surface-3,#eff3f9);overflow:hidden"><div style="height:100%;width:100%;border-radius:3px;background:var(--color-success,#16a05c)"></div></div>
+                </div>
+              </div>
+              <div style="flex:1"></div>
+              <div style="padding:12px 14px;border-top:1px solid var(--color-divider,#eef2f8)">
+                <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--color-text-3,#8a98b0);margin-bottom:8px">会话历史</div>
+                <div style="font-size:13px;color:var(--color-text,#16233b);padding:8px 10px;border-radius:8px;background:var(--color-primary-softer,#f2f7ff);border-left:2.5px solid var(--color-primary,#1677ff);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SGLT2i 在 HFpEF 中的疗效</div>
+                <div style="font-size:13px;color:var(--color-text-2,#56657f);padding:8px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" style-hover="background:var(--color-surface-3,#eff3f9)">房颤抗凝策略综述</div>
+                <div style="font-size:13px;color:var(--color-text-2,#56657f);padding:8px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" style-hover="background:var(--color-surface-3,#eff3f9)">他汀类一级预防证据</div>
+              </div>
+            </div>
+
+            <!-- chat -->
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--color-bg,#eef3fb)">
+              <!-- chat toolbar -->
+              <div style="flex-shrink:0;padding:12px 22px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff)">
+                <div style="display:flex;align-items:center;gap:8px"><span style="width:28px;height:28px;border-radius:8px;background:var(--color-primary-soft,#e8f1ff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-1.5-7 0v12c2-1.5 5-1.5 7 0M12 6c2-1.5 5-1.5 7 0v12c-2-1.5-5-1.5-7 0M12 6v12"/></svg></span><div><div style="font-size:14px;font-weight:600;color:var(--color-text,#16233b)">{{ modeTitle }}</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">{{ modeDesc }}</div></div></div>
+                <div style="flex:1"></div>
+                <button onClick="{{ act.editor }}" style="height:38px;padding:0 16px;border:none;border-radius:10px;background:var(--color-primary,#1677ff);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(22,119,255,.28)" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 16h4"/></svg>一键生成在线 Word</button>
+              </div>
+
+              <!-- messages -->
+              <div style="flex:1;overflow-y:auto;padding:24px 22px;display:flex;flex-direction:column;gap:22px">
+                <!-- user msg -->
+                <div style="display:flex;gap:12px;align-self:flex-end;max-width:78%;flex-direction:row-reverse">
+                  <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#0a5fe0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">张</div>
+                  <div style="background:var(--color-primary,#1677ff);color:#fff;padding:12px 16px;border-radius:14px 14px 4px 14px;font-size:14px;line-height:1.7">请基于我上传的论文与 PubMed，总结 SGLT2 抑制剂在射血分数保留型心衰（HFpEF）中的疗效证据，并标注来源。</div>
+                </div>
+                <!-- ai msg -->
+                <div style="display:flex;gap:12px;max-width:88%">
+                  <div style="width:32px;height:32px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--color-primary,#1677ff)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z"/></svg></div>
+                  <div style="flex:1;min-width:0;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:4px 14px 14px 14px;box-shadow:var(--shadow-sm)">
+                    <div style="padding:16px 18px;font-size:14px;line-height:1.85;color:var(--color-text,#16233b)">
+                      <p style="margin:0 0 12px">基于两项大型随机对照试验与一项荟萃分析，SGLT2 抑制剂在 HFpEF 人群中可<strong>显著降低心衰住院风险</strong>，对心血管死亡的影响则较为有限：</p>
+                      <ul style="margin:0 0 12px;padding-left:18px;display:flex;flex-direction:column;gap:8px">
+                        <li>恩格列净使心衰住院或心血管死亡的复合终点相对风险降低约 21%<span onClick="{{ cite1 }}" style="{{ chipStyle1 }}">1</span>，获益主要由住院减少驱动<span onClick="{{ cite1 }}" style="{{ chipStyle1 }}">1</span>。</li>
+                        <li>达格列净在 LVEF&gt;40% 人群中同样降低复合终点（HR 0.82）<span onClick="{{ cite2 }}" style="{{ chipStyle2 }}">2</span>，且不同 EF 亚组获益一致。</li>
+                        <li>纳入 &gt;12,000 例的荟萃分析显示该类药物对心血管死亡的单独影响未达统计学显著<span onClick="{{ cite3 }}" style="{{ chipStyle3 }}">3</span>。</li>
+                      </ul>
+                      <p style="margin:0;color:var(--color-text-2,#56657f)">结论：现有证据支持 SGLT2i 作为 HFpEF 降低心衰住院的治疗选择（证据等级 1A）；用药决策仍需结合患者肾功能、容量状态与禁忌证个体化评估。</p>
+                    </div>
+                    <!-- citation source panel -->
+                    <sc-if value="{{ openSources }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin:0 18px;border-top:1px solid var(--color-divider,#eef2f8);padding:14px 0;animation:fadeUp .2s ease both">
+                      <div style="font-size:12px;font-weight:700;color:var(--color-text-2,#56657f);margin-bottom:10px;display:flex;align-items:center;gap:7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>引用来源 · 3 篇</div>
+                      <div style="display:flex;flex-direction:column;gap:8px">
+                        <div style="{{ srcStyle1 }}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:20px;height:20px;border-radius:6px;background:var(--color-primary,#1677ff);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">Empagliflozin in HFpEF (EMPEROR-Preserved)</span></div><div style="font-size:12px;color:var(--color-text-2,#56657f);padding-left:28px;line-height:1.7">N Engl J Med · 2021 · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PMID 34449189</span> · 定位：p.1451, Fig.2 / 主要终点段落</div></div>
+                        <div style="{{ srcStyle2 }}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:20px;height:20px;border-radius:6px;background:var(--color-primary,#1677ff);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">Dapagliflozin in HF with Mildly Reduced/Preserved EF (DELIVER)</span></div><div style="font-size:12px;color:var(--color-text-2,#56657f);padding-left:28px;line-height:1.7">N Engl J Med · 2022 · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PMID 36027570</span> · 定位：Results, 主要复合终点</div></div>
+                        <div style="{{ srcStyle3 }}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:20px;height:20px;border-radius:6px;background:var(--color-primary,#1677ff);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">SGLT2i across the EF spectrum: a meta-analysis</span></div><div style="font-size:12px;color:var(--color-text-2,#56657f);padding-left:28px;line-height:1.7">Lancet · 2022 · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PMID 36041474</span> · 定位：CV death 森林图</div></div>
+                      </div>
+                    </div>
+                    </sc-if>
+                    <!-- ai footer: disclaimer + draft badge -->
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 18px;border-top:1px solid var(--color-divider,#eef2f8);background:var(--color-surface-2,#f7f9fd);border-radius:0 0 14px 14px">
+                      <span style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:4px 9px;border-radius:7px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>草稿 · 需人工确认</span>
+                      <span style="font-size:11.5px;color:var(--color-text-3,#8a98b0);flex:1;min-width:160px">AI 生成内容为辅助参考，不构成诊断 / 处方建议，请结合原文与临床判断核实。</span>
+                      <div style="display:flex;gap:6px">
+                        <span style="width:30px;height:30px;border-radius:8px;border:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-2,#56657f)" style-hover="background:var(--color-surface-3,#eff3f9)" title="复制"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+                        <span style="width:30px;height:30px;border-radius:8px;border:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-2,#56657f)" style-hover="background:var(--color-surface-3,#eff3f9)" title="重新生成"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><polyline points="21 3 21 8 16 8"/></svg></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- composer -->
+              <div style="flex-shrink:0;padding:14px 22px 18px;background:var(--color-bg,#eef3fb)">
+                <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:12px 14px" style-focus-within="box-shadow:var(--ring)">
+                  <div style="font-size:14px;color:var(--color-text-3,#8a98b0);min-height:24px">继续追问，或选择数据源后提问…</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+                    <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-2,#56657f);padding:5px 10px;border-radius:8px;background:var(--color-surface-2,#f7f9fd);border:1px solid var(--color-border,#e3e9f2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>PubMed + 1 文件</span>
+                    <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-2,#56657f);padding:5px 10px;border-radius:8px;background:var(--color-surface-2,#f7f9fd);border:1px solid var(--color-border,#e3e9f2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/></svg>上传</span>
+                    <div style="flex:1"></div>
+                    <button style="width:38px;height:38px;border:none;border-radius:10px;background:var(--color-primary,#1677ff);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== EDITOR HOST + WRITE-BACK PANEL ===== -->
+        <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="在线编辑器 写回面板" style="height:100%;display:flex;flex-direction:column;background:var(--color-surface-3,#eef3f9)">
+          <!-- host toolbar -->
+          <div style="flex-shrink:0;height:52px;background:var(--color-surface,#fff);border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;gap:14px;padding:0 18px">
+            <button onClick="{{ act.docs }}" style="display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);border-radius:8px;cursor:pointer;font-size:13px;color:var(--color-text-2,#56657f)" style-hover="background:var(--color-surface-3,#eef3f9)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"/></svg>返回文档中心</button>
+            <span style="width:26px;height:26px;border-radius:7px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">DOCX</span>
+            <div style="min-width:0"><div style="font-size:14px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap">SGLT2i 在 HFpEF 中的疗效综述.docx</div></div>
+            <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-success,#16a05c);font-weight:500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg>已自动保存 · v4</span>
+            <div style="flex:1"></div>
+            <span style="font-size:12px;color:var(--color-text-3,#8a98b0)">协作者 3 人</span>
+            <button style="height:34px;padding:0 16px;border:none;border-radius:9px;background:var(--color-primary,#1677ff);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>保存新版本</button>
+          </div>
+
+          <div style="flex:1;display:flex;min-height:0">
+            <!-- ONLYOFFICE canvas (third-party, not re-skinned) -->
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#f0f1f4">
+              <div style="flex-shrink:0;height:40px;background:#fafafa;border-bottom:1px solid #e2e2e6;display:flex;align-items:center;gap:14px;padding:0 16px">
+                <span style="font-size:12px;color:#8a8a92;display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>ONLYOFFICE Docs · 第三方原生编辑器（不换肤）</span>
+                <div style="flex:1"></div>
+                <span style="font-size:12px;color:#b0b0b6;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">100%</span>
+              </div>
+              <div style="flex:1;overflow:auto;padding:28px;display:flex;justify-content:center">
+                <div style="width:660px;max-width:100%;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:54px 64px;min-height:600px">
+                  <div style="font-size:21px;font-weight:700;color:#1a1a1a;text-align:center;margin-bottom:6px">SGLT2 抑制剂在射血分数保留型心衰中的疗效综述</div>
+                  <div style="font-size:12px;color:#8a8a8a;text-align:center;margin-bottom:24px">张明　心血管内科　2026-06</div>
+                  <div style="font-size:14px;font-weight:700;color:#222;margin:18px 0 8px">摘要</div>
+                  <div style="font-size:13.5px;line-height:2;color:#333">本文综述了 SGLT2 抑制剂在 HFpEF 人群中的循证证据。基于 EMPEROR-Preserved 与 DELIVER 两项随机对照试验，该类药物可降低心衰住院风险……</div>
+                  <div style="font-size:14px;font-weight:700;color:#222;margin:22px 0 8px">一、研究背景</div>
+                  <div style="font-size:13.5px;line-height:2;color:#333">射血分数保留型心衰长期缺乏改善预后的药物。<span style="background:#fff3bf;border-bottom:2px solid #f0a020;padding:1px 2px">本品对所有患者均可显著降低全因死亡率，建议常规处方。</span>近年 SGLT2i 的出现改变了这一格局……</div>
+                  <div style="margin-top:14px;font-size:13.5px;line-height:2;color:#bbb">|</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT AI PANEL (360px) -->
+            <div style="width:368px;flex-shrink:0;background:var(--color-surface,#fff);border-left:1px solid var(--color-border,#e3e9f2);display:flex;flex-direction:column;overflow:hidden">
+              <div style="flex-shrink:0;padding:14px 18px 0;border-bottom:1px solid var(--color-border,#e3e9f2)">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:13px"><span style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1677ff,#0a5fe0);display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l1.6 4.4L18 10l-4.4 1.6L12 16l-1.6-4.4L6 10l4.4-1.6z"/></svg></span><div><div style="font-size:14.5px;font-weight:700;color:var(--color-text,#16233b)">医疗 AI 助手</div><div style="font-size:11px;color:var(--color-text-3,#8a98b0)">作用于编辑器选区</div></div></div>
+                <div style="display:flex">
+                  <div onClick="{{ wbActPolish }}" style="{{ wbStyle.polish }}">润色</div>
+                  <div onClick="{{ wbActProof }}" style="{{ wbStyle.proof }}">校对</div>
+                  <div onClick="{{ wbActTrans }}" style="{{ wbStyle.trans }}">翻译选区</div>
+                </div>
+              </div>
+
+              <div style="flex:1;overflow-y:auto;padding:16px 18px">
+                <!-- selection -->
+                <div style="font-size:11.5px;font-weight:700;letter-spacing:.5px;color:var(--color-text-3,#8a98b0);margin-bottom:7px">当前选区 · 第 2 段 · 38 字</div>
+                <div style="padding:11px 13px;border-radius:10px;background:var(--color-surface-2,#f6f9fd);border:1px solid var(--color-border,#e3e9f2);font-size:13px;line-height:1.75;color:var(--color-text-2,#56657f)">本品对所有患者均可显著降低全因死亡率，建议常规处方。</div>
+
+                <!-- HIGH-RISK banner -->
+                <div style="margin-top:14px;display:flex;gap:10px;padding:12px 13px;border-radius:11px;background:var(--color-danger-soft,#fdecec);border:1px solid var(--color-danger,#e23b3b)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger,#e23b3b)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+                  <div><div style="font-size:13px;font-weight:700;color:var(--color-danger,#e23b3b)">高风险内容（用药 / 医嘱）</div><div style="font-size:12px;color:var(--color-text-2,#56657f);line-height:1.7;margin-top:2px">原文存在绝对化疗效表述。写回需<strong>授权医师确认</strong>，AI 已弱化为循证表述。</div></div>
+                </div>
+
+                <!-- WRITE-BACK CONFIRMATION CARD -->
+                <div style="margin-top:16px;border:1px solid var(--color-border,#e3e9f2);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+                  <div style="padding:11px 14px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg><span style="font-size:13.5px;font-weight:700;color:var(--color-text,#16233b)">写回确认 · 润色建议</span></div>
+                  <div style="padding:14px">
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-3,#8a98b0);margin-bottom:5px">原文</div>
+                    <div style="padding:10px 12px;border-radius:9px;background:var(--color-danger-soft,#fdecec);font-size:12.5px;line-height:1.7;color:var(--color-text-2,#56657f);text-decoration:line-through;text-decoration-color:rgba(226,59,59,.5)">本品对所有患者均可显著降低全因死亡率，建议常规处方。</div>
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-3,#8a98b0);margin:12px 0 5px">修改后</div>
+                    <div style="padding:10px 12px;border-radius:9px;background:var(--color-success-soft,#e6f6ed);font-size:12.5px;line-height:1.7;color:var(--color-text,#16233b)">现有 RCT 证据显示，本品可<strong style="color:var(--color-success,#16a05c)">降低 HFpEF 患者的心衰住院风险</strong>；是否处方应结合个体禁忌与肾功能评估。</div>
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-3,#8a98b0);margin:14px 0 6px">修改说明</div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <div style="display:flex;gap:7px;font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.6"><span style="color:var(--color-primary,#1677ff)">•</span>将"所有患者""全因死亡率"等绝对化表述改为循证限定</div>
+                      <div style="display:flex;gap:7px;font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.6"><span style="color:var(--color-primary,#1677ff)">•</span>补充个体化评估提示，避免医嘱化误导</div>
+                    </div>
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-3,#8a98b0);margin:14px 0 6px">影响范围</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11.5px;color:var(--color-text-2,#56657f);background:var(--color-surface-3,#eef3f9);padding:3px 9px;border-radius:7px">1 处选区</span><span style="font-size:11.5px;color:var(--color-text-2,#56657f);background:var(--color-surface-3,#eef3f9);padding:3px 9px;border-radius:7px">第 2 段</span><span style="font-size:11.5px;color:var(--color-text-2,#56657f);background:var(--color-surface-3,#eef3f9);padding:3px 9px;border-radius:7px">不影响标题/引用</span></div>
+                  </div>
+                  <div style="padding:12px 14px;border-top:1px solid var(--color-divider,#eef2f8);display:flex;flex-direction:column;gap:8px">
+                    <sc-if value="{{ wbApplied }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:9px;background:var(--color-success-soft,#e6f6ed);color:var(--color-success,#16a05c);font-size:12.5px;font-weight:600;animation:fadeUp .2s ease both"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg>已写回文档并保存为 v5</div></sc-if>
+                    <div style="display:flex;gap:8px">
+                      <button onClick="{{ applyWb }}" style="flex:1;height:40px;border:none;border-radius:10px;background:var(--color-primary,#1677ff);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:var(--color-primary-hover,#4096ff)">应用到文档</button>
+                      <button style="height:40px;padding:0 13px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text-2,#56657f);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--color-surface-3,#eef3f9)">生成副本</button>
+                    </div>
+                    <button style="height:36px;border:none;background:transparent;color:var(--color-text-3,#8a98b0);font-size:13px;cursor:pointer">取消</button>
+                  </div>
+                </div>
+                <div style="margin-top:12px;font-size:11px;color:var(--color-text-3,#8a98b0);line-height:1.7;text-align:center">AI 修改为辅助草稿，写回前请人工核对。系统绝不静默修改文档。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== DOCUMENT CENTER ===== -->
+        <sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="文档中心" style="padding:24px 28px">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+            <div><div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">文档中心</div><div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px">128 个文档 · 已用 4.2 GB / 50 GB</div></div>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:4px;padding:3px;background:var(--color-surface-3,#eef3f9);border-radius:10px">
+              <span onClick="{{ dvTable }}" style="{{ dvStyle.table }}" title="表格视图"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg></span>
+              <span onClick="{{ dvCard }}" style="{{ dvStyle.card }}" title="卡片视图"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+            </div>
+            <button style="height:38px;padding:0 16px;border:none;border-radius:10px;background:var(--color-primary,#1677ff);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 4px 12px rgba(22,119,255,.26)" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>上传文档</button>
+          </div>
+
+          <!-- TABLE VIEW -->
+          <sc-if value="{{ isDocTable }}" hint-placeholder-val="{{ true }}">
+          <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+            <div style="display:grid;grid-template-columns:2.4fr 1fr 1.1fr 1fr 1.2fr 90px;padding:12px 18px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);font-size:12px;font-weight:700;color:var(--color-text-3,#8a98b0)"><span>名称</span><span>类型</span><span>所有者</span><span>版本</span><span>更新时间</span><span style="text-align:right">操作</span></div>
+            <div style="display:grid;grid-template-columns:2.4fr 1fr 1.1fr 1fr 1.2fr 90px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--color-divider,#eef2f8)" style-hover="background:var(--color-surface-2,#f6f9fd)"><span style="display:flex;align-items:center;gap:11px;min-width:0"><span style="width:30px;height:30px;border-radius:8px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;flex-shrink:0">DOC</span><span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SGLT2i 在 HFpEF 中的疗效综述.docx</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:1px 7px;border-radius:6px;margin-top:3px">可编辑</span></span></span><span style="font-size:13px;color:var(--color-text-2,#56657f)">在线 Word</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">张明 医师</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">v5</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">2 分钟前</span><span style="display:flex;justify-content:flex-end;gap:4px"><span onClick="{{ act.editor }}" style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-primary,#1677ff)" style-hover="background:var(--color-primary-soft,#e2eeff)" title="打开"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span><span onClick="{{ openDrawer }}" style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)" title="版本历史"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8"/><polyline points="3.5 4 3.5 8 7.5 8"/><polyline points="12 8 12 12 15 13.6"/></svg></span></span></div>
+            <div style="display:grid;grid-template-columns:2.4fr 1fr 1.1fr 1fr 1.2fr 90px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--color-divider,#eef2f8)" style-hover="background:var(--color-surface-2,#f6f9fd)"><span style="display:flex;align-items:center;gap:11px;min-width:0"><span style="width:30px;height:30px;border-radius:8px;background:var(--color-danger-soft,#fdecec);color:var(--color-danger,#e23b3b);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;flex-shrink:0">PDF</span><span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">HFpEF_SGLT2_2023.pdf</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-3,#8a98b0);background:var(--color-surface-3,#eef3f9);padding:1px 7px;border-radius:6px;margin-top:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>仅查看</span></span></span><span style="font-size:13px;color:var(--color-text-2,#56657f)">PDF</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">李研 研究员</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">v1</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">今天 09:14</span><span style="display:flex;justify-content:flex-end;gap:4px"><span onClick="{{ openAcl }}" style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)" title="权限"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><circle cx="18" cy="9" r="2.2"/></svg></span></span></div>
+            <div style="display:grid;grid-template-columns:2.4fr 1fr 1.1fr 1fr 1.2fr 90px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--color-divider,#eef2f8)" style-hover="background:var(--color-surface-2,#f6f9fd)"><span style="display:flex;align-items:center;gap:11px;min-width:0"><span style="width:30px;height:30px;border-radius:8px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;flex-shrink:0">DOC</span><span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">出院小结模板_心内科.docx</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:1px 7px;border-radius:6px;margin-top:3px">受限 · 科室共享</span></span></span><span style="font-size:13px;color:var(--color-text-2,#56657f)">在线 Word</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">医务处</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">v12</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">昨天 16:40</span><span style="display:flex;justify-content:flex-end;gap:4px"><span onClick="{{ openDrawer }}" style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)" title="版本历史"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8"/><polyline points="3.5 4 3.5 8 7.5 8"/><polyline points="12 8 12 12 15 13.6"/></svg></span></span></div>
+            <div style="display:grid;grid-template-columns:2.4fr 1fr 1.1fr 1fr 1.2fr 90px;align-items:center;padding:14px 18px" style-hover="background:var(--color-surface-2,#f6f9fd)"><span style="display:flex;align-items:center;gap:11px;min-width:0"><span style="width:30px;height:30px;border-radius:8px;background:var(--color-success-soft,#e6f6ed);color:var(--color-success,#16a05c);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;flex-shrink:0">XLS</span><span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">随访数据汇总_2026Q2.xlsx</span></span></span><span style="font-size:13px;color:var(--color-text-2,#56657f)">在线表格</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">王琳 护士长</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">v8</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">06-10</span><span style="display:flex;justify-content:flex-end;gap:4px"><span style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></span></span></div>
+          </div>
+          </sc-if>
+
+          <!-- CARD VIEW -->
+          <sc-if value="{{ isDocCard }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm);cursor:pointer" style-hover="box-shadow:var(--shadow-md);border-color:var(--color-primary,#1677ff)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:38px;height:38px;border-radius:10px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">DOC</span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:7px">可编辑</span></div><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);margin-top:14px;line-height:1.5">SGLT2i 在 HFpEF 中的疗效综述</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0);margin-top:8px">张明 · v5 · 2 分钟前</div></div>
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:38px;height:38px;border-radius:10px;background:var(--color-danger-soft,#fdecec);color:var(--color-danger,#e23b3b);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PDF</span><span style="font-size:11px;color:var(--color-text-3,#8a98b0);background:var(--color-surface-3,#eef3f9);padding:2px 8px;border-radius:7px">仅查看</span></div><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);margin-top:14px;line-height:1.5">HFpEF_SGLT2_2023.pdf</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0);margin-top:8px">李研 · v1 · 今天</div></div>
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:38px;height:38px;border-radius:10px;background:var(--color-success-soft,#e6f6ed);color:var(--color-success,#16a05c);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">XLS</span></div><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b);margin-top:14px;line-height:1.5">随访数据汇总_2026Q2</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0);margin-top:8px">王琳 · v8 · 06-10</div></div>
+          </div>
+          </sc-if>
+        </div>
+
+        <!-- version drawer -->
+        <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeDrawer }}" style="position:absolute;inset:0;background:rgba(8,18,38,.4);z-index:60;display:flex;justify-content:flex-end;animation:fadeUp .15s ease both">
+          <div style="width:380px;height:100%;background:var(--color-surface,#fff);box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
+            <div style="padding:18px 20px;border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center"><div><div style="font-size:16px;font-weight:700;color:var(--color-text,#16233b)">版本历史</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:2px">SGLT2i 在 HFpEF 中的疗效综述.docx</div></div><div style="flex:1"></div><span onClick="{{ closeDrawer }}" style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></div>
+            <div style="flex:1;overflow-y:auto;padding:16px 20px">
+              <div style="position:relative;padding-left:22px;border-left:2px solid var(--color-divider,#eef2f8);display:flex;flex-direction:column;gap:18px">
+                <div style="position:relative"><span style="position:absolute;left:-29px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--color-primary,#1677ff);border:2px solid var(--color-surface,#fff);box-shadow:0 0 0 2px var(--color-primary,#1677ff)"></span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;font-weight:700;color:var(--color-text,#16233b)">v5 · 当前</span><span style="font-size:10.5px;color:var(--color-primary,#1677ff);background:var(--color-primary-soft,#e2eeff);padding:1px 7px;border-radius:6px">AI 写回</span></div><div style="font-size:12px;color:var(--color-text-2,#56657f);margin-top:3px">张明 应用「润色」修改 · 2 分钟前</div></div>
+                <div style="position:relative"><span style="position:absolute;left:-29px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--color-border-strong,#cdd6e4);border:2px solid var(--color-surface,#fff)"></span><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">v4</div><div style="font-size:12px;color:var(--color-text-2,#56657f);margin-top:3px">由 AIMed「一键生成在线 Word」创建 · 18 分钟前</div><button style="margin-top:7px;font-size:12px;color:var(--color-primary,#1677ff);background:none;border:none;cursor:pointer;padding:0">恢复此版本</button></div>
+                <div style="position:relative"><span style="position:absolute;left:-29px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--color-border-strong,#cdd6e4);border:2px solid var(--color-surface,#fff)"></span><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">v3 — v1</div><div style="font-size:12px;color:var(--color-text-2,#56657f);margin-top:3px">早期草稿 · 今天 09:20</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ACL modal -->
+        <sc-if value="{{ aclOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeAcl }}" style="position:absolute;inset:0;background:rgba(8,18,38,.45);z-index:60;display:flex;align-items:center;justify-content:center;animation:fadeUp .15s ease both">
+          <div style="width:480px;max-width:92%;background:var(--color-surface,#fff);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden">
+            <div style="padding:18px 22px;border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center"><div style="font-size:16px;font-weight:700;color:var(--color-text,#16233b)">文档权限 (ACL)</div><div style="flex:1"></div><span onClick="{{ closeAcl }}" style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--color-text-3,#8a98b0)" style-hover="background:var(--color-surface-3,#eef3f9)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></div>
+            <div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:11px"><div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1677ff,#0a5fe0);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">张</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">张明 医师</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">所有者</div></div><span style="font-size:12px;color:var(--color-text-2,#56657f)">完全控制</span></div>
+              <div style="display:flex;align-items:center;gap:11px"><div style="width:34px;height:34px;border-radius:9px;background:var(--color-surface-3,#eef3f9);color:var(--color-text-2,#56657f);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">李</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">李研 研究员</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">科研组</div></div><span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-2,#56657f);border:1px solid var(--color-border,#e3e9f2);border-radius:8px;padding:5px 10px;cursor:pointer">可编辑<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+              <div style="display:flex;align-items:center;gap:11px"><div style="width:34px;height:34px;border-radius:9px;background:var(--color-surface-3,#eef3f9);color:var(--color-text-2,#56657f);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">心内</div><div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">心血管内科</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">科室 · 12 人</div></div><span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-2,#56657f);border:1px solid var(--color-border,#e3e9f2);border-radius:8px;padding:5px 10px;cursor:pointer">仅查看<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+              <div style="margin-top:4px;padding:10px 12px;border-radius:9px;background:var(--color-info-soft,#e8f1ff);font-size:12px;color:var(--color-text-2,#56657f);line-height:1.7;display:flex;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-info,#1677ff)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>权限继承自所在知识库 / 科室，可在此覆盖。多租户隔离已启用。</div>
+            </div>
+            <div style="padding:14px 22px;border-top:1px solid var(--color-divider,#eef2f8);display:flex;justify-content:flex-end;gap:10px"><button onClick="{{ closeAcl }}" style="height:38px;padding:0 16px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text-2,#56657f);border-radius:9px;font-size:13.5px;cursor:pointer">取消</button><button onClick="{{ closeAcl }}" style="height:38px;padding:0 18px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer">保存权限</button></div>
+          </div>
+        </div>
+        </sc-if>
+        </sc-if>
+
+        <!-- ===== KNOWLEDGE BASE ===== -->
+        <sc-if value="{{ isKb }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="医疗知识库" style="padding:24px 28px">
+          <sc-if value="{{ hasKbDetail }}" hint-placeholder-val="{{ false }}">
+          <!-- KB DETAIL -->
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;font-size:13px;color:var(--color-text-3,#8a98b0)"><span onClick="{{ closeKb }}" style="cursor:pointer" style-hover="color:var(--color-primary,#1677ff)">医疗知识库</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 6 15 12 9 18"/></svg><span style="color:var(--color-text,#16233b);font-weight:600">{{ kbDetailName }}</span></div>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><span style="width:46px;height:46px;border-radius:12px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5V4.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/></svg></span><div><div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">{{ kbDetailName }}</div><div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px">342 篇文档 · 已建索引 · 最近重建 2 天前</div></div><div style="flex:1"></div><button style="height:36px;padding:0 14px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text-2,#56657f);border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:var(--color-surface-3,#eef3f9)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><circle cx="18" cy="9" r="2.2"/></svg>KB 权限</button><button style="height:36px;padding:0 14px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><polyline points="21 3 21 8 16 8"/></svg>重建索引</button></div>
+            <div style="display:grid;grid-template-columns:1fr 320px;gap:18px">
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden">
+                <div style="padding:13px 18px;border-bottom:1px solid var(--color-border,#e3e9f2);font-size:13.5px;font-weight:700;color:var(--color-text,#16233b)">文档管理</div>
+                <div style="display:flex;align-items:center;gap:11px;padding:13px 18px;border-bottom:1px solid var(--color-divider,#eef2f8)"><span style="width:28px;height:28px;border-radius:7px;background:var(--color-danger-soft,#fdecec);color:var(--color-danger,#e23b3b);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">PDF</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">2024 ESC 心衰管理指南.pdf</div><div style="font-size:11px;color:var(--color-success,#16a05c)">已索引 · 86 段</div></div><span style="font-size:11px;color:var(--color-text-3,#8a98b0)">指南</span></div>
+                <div style="display:flex;align-items:center;gap:11px;padding:13px 18px;border-bottom:1px solid var(--color-divider,#eef2f8)"><span style="width:28px;height:28px;border-radius:7px;background:var(--color-info-soft,#e8f1ff);color:var(--color-info,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg></span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">heart.org / hf-guidelines</div><div style="font-size:11px;color:var(--color-text-3,#8a98b0)">URL 导入 · 白名单来源</div></div><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 7px;border-radius:6px">白名单</span></div>
+                <div style="display:flex;align-items:center;gap:11px;padding:13px 18px"><span style="width:28px;height:28px;border-radius:7px;background:var(--color-warning-soft,#fbf1de);color:var(--color-warning,#e2920f);display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin 1.4s linear infinite"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg></span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">急性心梗诊疗共识.docx</div><div style="font-size:11px;color:var(--color-warning,#e2920f)">索引构建中 62%…</div></div></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:16px"><div style="font-size:13px;font-weight:700;color:var(--color-text,#16233b);margin-bottom:11px;display:flex;align-items:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4-3.5 7-9 9-5.5-2-9-5-9-9V6l9-3 9 3z"/></svg>URL 白名单</div><div style="display:flex;flex-direction:column;gap:7px"><div style="font-size:12px;color:var(--color-text-2,#56657f);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--color-surface-2,#f6f9fd);padding:7px 10px;border-radius:8px">*.heart.org</div><div style="font-size:12px;color:var(--color-text-2,#56657f);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--color-surface-2,#f6f9fd);padding:7px 10px;border-radius:8px">pubmed.ncbi.nlm.nih.gov</div></div><button style="margin-top:11px;width:100%;height:34px;border:1px dashed var(--color-border-strong,#cdd6e4);background:transparent;color:var(--color-primary,#1677ff);border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer">+ 添加白名单域名</button></div>
+                <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:16px"><div style="font-size:13px;font-weight:700;color:var(--color-text,#16233b);margin-bottom:8px">KB 级权限</div><div style="font-size:12px;color:var(--color-text-2,#56657f);line-height:1.7">可见范围：<strong>心血管内科 + 科研组</strong>。检索受 RBAC 与租户隔离约束。</div></div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+          <sc-if value="{{ isKbGrid }}" hint-placeholder-val="{{ true }}">
+          <!-- KB GRID -->
+          <div>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div><div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">医疗知识库</div><div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px">13 类专科知识库 · RAG 检索增强 · 支持离线缓存</div></div><div style="flex:1"></div><button style="height:38px;padding:0 16px;border:none;border-radius:10px;background:var(--color-primary,#1677ff);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 4px 12px rgba(22,119,255,.26)" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新建知识库</button></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:16px">
+              <div onClick="{{ kbActCardio }}" style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all .15s" style-hover="box-shadow:var(--shadow-md);border-color:var(--color-primary,#1677ff);transform:translateY(-2px)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0 0 12 6 3.5 3.5 0 0 0 2 8.5c0 2.2 1.5 4 3 5.5l7 7z"/><polyline points="6 12 9 12 11 9 13 14 15 12 18 12"/></svg></span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:7px">已索引</span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">心血管疾病</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">342 篇 · 心内科 + 科研组</div></div>
+              <div onClick="{{ kbActOnco }}" style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all .15s" style-hover="box-shadow:var(--shadow-md);border-color:var(--color-primary,#1677ff);transform:translateY(-2px)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#fce8ef;color:#d6336c;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:7px">已索引</span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">肿瘤学</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">521 篇 · 肿瘤中心</div></div>
+              <div onClick="{{ kbActEndo }}" style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all .15s" style-hover="box-shadow:var(--shadow-md);border-color:var(--color-primary,#1677ff);transform:translateY(-2px)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#e7f5ef;color:#0ca678;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4M16 3v4M4 9h16"/><rect x="4" y="5" width="16" height="16" rx="2"/></svg></span><span style="font-size:11px;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:2px 8px;border-radius:7px">构建中</span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">内分泌代谢</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">287 篇 · 内分泌科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#ede9fb;color:#7048e8;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.8V15a3 3 0 0 0 4 2.8A3 3 0 0 0 12 21a3 3 0 0 0 3-3.2A3 3 0 0 0 19 15v-2.2A3 3 0 0 0 18 7V6a3 3 0 0 0-3-3 3 3 0 0 0-3 1.5A3 3 0 0 0 9 3z"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">神经系统</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">196 篇 · 神经内科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#e3f3fb;color:#1098ad;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12a6 6 0 0 1 12 0c0 5-3 8-6 8s-6-3-6-8z"/><path d="M9 9c0-2 1-4 3-4s3 2 3 4"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">呼吸系统</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">174 篇 · 呼吸科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#fbeee3;color:#e8590c;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2 0 3 1 4 1s2-1 4-1 4 2 4 6c0 5-3 10-5 10-1.5 0-2-1-3-1s-1.5 1-3 1c-2 0-5-5-5-10 0-4 2-6 4-6z"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">消化系统</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">203 篇 · 消化科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#fdecec;color:#e23b3b;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h4l2-5 3 10 2-5h5"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">感染性疾病</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">158 篇 · 感染科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#fff4e0;color:#f08c00;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">儿科</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">132 篇 · 儿科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#fdecec;color:#e23b3b;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18" /><circle cx="12" cy="12" r="9"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">急诊医学</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">211 篇 · 急诊科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#e3f3fb;color:#1098ad;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">影像诊断</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">98 篇 · 影像科</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#e7f5ef;color:#0ca678;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6l-4 9a2 2 0 0 0 2 3h8a2 2 0 0 0 2-3l-4-9V2"/><path d="M8 2h8"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">药理与用药</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">276 篇 · 药学部</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">临床指南</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">144 篇 · 全院共享</div></div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;padding:18px;box-shadow:var(--shadow-sm)"><div style="display:flex;align-items:center;justify-content:space-between"><span style="width:42px;height:42px;border-radius:11px;background:#eef0f3;color:#5a6b85;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg></span></div><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b);margin-top:14px">病例库</div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">1,024 例 · 全院 · 脱敏</div></div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+        </sc-if>
+
+        <!-- ===== MEDICAL TRANSLATION ===== -->
+        <sc-if value="{{ isTranslate }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="医学翻译" style="padding:24px 28px">
+          <div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">医学翻译</div>
+          <div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px;margin-bottom:20px">基于医学术语库的异步翻译 · 译稿对照可写回原文档</div>
+          <!-- steps -->
+          <div style="display:flex;align-items:center;gap:0;margin-bottom:20px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:14px 22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;align-items:center;gap:9px"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-success,#16a05c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">选择文档 / 选区</span></div>
+            <div style="flex:1;height:2px;background:var(--color-success,#16a05c);margin:0 14px"></div>
+            <div style="display:flex;align-items:center;gap:9px"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-success,#16a05c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg></span><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">语向与术语库</span></div>
+            <div style="flex:1;height:2px;background:var(--color-primary,#1677ff);margin:0 14px"></div>
+            <div style="display:flex;align-items:center;gap:9px"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-primary,#1677ff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">3</span><span style="font-size:13.5px;font-weight:600;color:var(--color-primary,#1677ff)">译稿对照与写回</span></div>
+            <div style="flex:1;height:2px;background:var(--color-border,#e3e9f2);margin:0 14px"></div>
+            <div style="display:flex;align-items:center;gap:9px;opacity:.6"><span style="width:26px;height:26px;border-radius:50%;background:var(--color-surface-3,#eef3f9);color:var(--color-text-3,#8a98b0);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">4</span><span style="font-size:13.5px;font-weight:500;color:var(--color-text-3,#8a98b0)">完成</span></div>
+          </div>
+
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+            <div style="display:flex;align-items:center;gap:10px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:11px;padding:11px 15px"><span style="font-size:12px;color:var(--color-text-3,#8a98b0)">语向</span><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">英文 EN</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">中文 ZH</span></div>
+            <div style="display:flex;align-items:center;gap:8px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:11px;padding:11px 15px"><span style="font-size:12px;color:var(--color-text-3,#8a98b0)">术语库</span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">心血管医学术语 v3</span></div>
+            <div style="display:flex;align-items:center;gap:8px;background:var(--color-success-soft,#e6f6ed);border:1px solid transparent;border-radius:11px;padding:11px 15px;color:var(--color-success,#16a05c)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 7"/></svg><span style="font-size:13px;font-weight:600">异步翻译完成 · 24 段</span></div>
+          </div>
+
+          <!-- comparison -->
+          <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:grid;grid-template-columns:1fr 1fr">
+              <div style="padding:12px 18px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);border-right:1px solid var(--color-border,#e3e9f2);font-size:13px;font-weight:700;color:var(--color-text-2,#56657f)">原文 · EN</div>
+              <div style="padding:12px 18px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);font-size:13px;font-weight:700;color:var(--color-text-2,#56657f);display:flex;align-items:center;gap:8px">译文 · ZH<span style="font-size:10.5px;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:1px 7px;border-radius:6px">草稿 · 需人工确认</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--color-divider,#eef2f8)">
+              <div style="padding:16px 18px;border-right:1px solid var(--color-divider,#eef2f8);font-size:13.5px;line-height:1.9;color:var(--color-text-2,#56657f)">Empagliflozin reduced the combined risk of cardiovascular death or hospitalization for heart failure in patients with HFpEF.</div>
+              <div style="padding:16px 18px;font-size:13.5px;line-height:1.9;color:var(--color-text,#16233b)">恩格列净降低了 <span style="background:var(--color-primary-softer,#f2f7ff);border-bottom:1.5px solid var(--color-primary,#1677ff);padding:0 2px">射血分数保留型心衰（HFpEF）</span>患者心血管死亡或心衰住院的复合风险。</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr">
+              <div style="padding:16px 18px;border-right:1px solid var(--color-divider,#eef2f8);font-size:13.5px;line-height:1.9;color:var(--color-text-2,#56657f)">The benefit was consistent across prespecified subgroups, including those defined by ejection fraction.</div>
+              <div style="padding:16px 18px;font-size:13.5px;line-height:1.9;color:var(--color-text,#16233b)">该获益在预设亚组中保持一致，包括按<span style="background:var(--color-primary-softer,#f2f7ff);border-bottom:1.5px solid var(--color-primary,#1677ff);padding:0 2px">射血分数（EF）</span>划分的亚组。</div>
+            </div>
+            <div style="padding:14px 18px;border-top:1px solid var(--color-border,#e3e9f2);background:var(--color-surface-2,#f6f9fd);display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--color-text-3,#8a98b0);flex:1">高亮处为术语库命中。写回前请核对译稿，系统不会静默修改原文。</span><button style="height:36px;padding:0 14px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text-2,#56657f);border-radius:9px;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--color-surface-3,#eef3f9)">导出译稿</button><button onClick="{{ act.editor }}" style="height:36px;padding:0 16px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:var(--color-primary-hover,#4096ff)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>写回到文档</button></div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== TEMPLATE LIBRARY ===== -->
+        <sc-if value="{{ isTemplates }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="医疗模板库" style="padding:24px 28px">
+          <div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">医疗模板库</div>
+          <div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px;margin-bottom:18px">机构合规模板 · 一键套用至在线 Word</div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px">
+            <span style="padding:7px 15px;border-radius:9px;background:var(--color-primary,#1677ff);color:#fff;font-size:13px;font-weight:600;cursor:pointer">全部</span>
+            <span style="padding:7px 15px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);color:var(--color-text-2,#56657f);font-size:13px;cursor:pointer" style-hover="border-color:var(--color-primary,#1677ff);color:var(--color-primary,#1677ff)">临床文书</span>
+            <span style="padding:7px 15px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);color:var(--color-text-2,#56657f);font-size:13px;cursor:pointer" style-hover="border-color:var(--color-primary,#1677ff);color:var(--color-primary,#1677ff)">知情同意</span>
+            <span style="padding:7px 15px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);color:var(--color-text-2,#56657f);font-size:13px;cursor:pointer" style-hover="border-color:var(--color-primary,#1677ff);color:var(--color-primary,#1677ff)">科研写作</span>
+            <span style="padding:7px 15px;border-radius:9px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);color:var(--color-text-2,#56657f);font-size:13px;cursor:pointer" style-hover="border-color:var(--color-primary,#1677ff);color:var(--color-primary,#1677ff)">医务行政</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:18px">
+            <sc-for list="{{ templates }}" as="t" hint-placeholder-count="8">
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm);transition:all .15s" style-hover="box-shadow:var(--shadow-md);transform:translateY(-2px)">
+              <div style="height:118px;background:repeating-linear-gradient(135deg,var(--color-surface-2,#f6f9fd),var(--color-surface-2,#f6f9fd) 9px,var(--color-surface-3,#eef3f9) 9px,var(--color-surface-3,#eef3f9) 18px);position:relative;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--color-border,#e3e9f2)">
+                <div style="width:62px;height:80px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:5px;box-shadow:var(--shadow-sm);padding:9px 8px"><div style="height:5px;width:70%;background:var(--color-border-strong,#cdd6e4);border-radius:2px;margin-bottom:5px"></div><div style="height:3px;width:100%;background:var(--color-divider,#eef2f8);border-radius:2px;margin-bottom:3px"></div><div style="height:3px;width:100%;background:var(--color-divider,#eef2f8);border-radius:2px;margin-bottom:3px"></div><div style="height:3px;width:80%;background:var(--color-divider,#eef2f8);border-radius:2px"></div></div>
+                <span style="{{ t.tagStyle }}">{{ t.cat }}</span>
+              </div>
+              <div style="padding:13px 15px"><div style="font-size:14px;font-weight:600;color:var(--color-text,#16233b)">{{ t.name }}</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0);margin-top:3px">{{ t.dept }}</div>
+                <div style="display:flex;gap:8px;margin-top:12px"><button style="flex:1;height:33px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text-2,#56657f);border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer" style-hover="background:var(--color-surface-3,#eef3f9)">预览</button><button onClick="{{ act.editor }}" style="flex:1;height:33px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:var(--color-primary-hover,#4096ff)">套用</button></div>
+              </div>
+            </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== RECENT TASKS ===== -->
+        <sc-if value="{{ isRecent }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="最近任务" style="padding:24px 28px">
+          <div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">最近任务</div>
+          <div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px;margin-bottom:20px">从上次中断处继续 · 任务状态自动保存</div>
+          <div style="display:flex;flex-direction:column;gap:12px;max-width:880px">
+            <div style="display:flex;align-items:center;gap:16px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:16px 18px;box-shadow:var(--shadow-sm)"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-1.5-7 0v12c2-1.5 5-1.5 7 0M12 6c2-1.5 5-1.5 7 0v12c-2-1.5-5-1.5-7 0M12 6v12"/></svg></span><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:9px"><span style="font-size:14.5px;font-weight:600;color:var(--color-text,#16233b)">深度文献伴读 · SGLT2i 在 HFpEF 中的疗效</span><span style="font-size:11px;color:var(--color-primary,#1677ff);background:var(--color-primary-soft,#e2eeff);padding:1px 8px;border-radius:6px">进行中</span></div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">上次位置：正在精读第 3 / 5 篇 · 2 分钟前</div><div style="margin-top:9px;height:5px;border-radius:3px;background:var(--color-surface-3,#eef3f9);overflow:hidden"><div style="height:100%;width:60%;border-radius:3px;background:var(--color-primary,#1677ff)"></div></div></div><button onClick="{{ act.aimed }}" style="height:38px;padding:0 18px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:var(--color-primary-hover,#4096ff)">继续</button></div>
+
+            <div style="display:flex;align-items:center;gap:16px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:16px 18px;box-shadow:var(--shadow-sm)"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-warning-soft,#fbf1de);color:var(--color-warning,#e2920f);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4-8 4-8-4 8-4z"/><path d="M4 12l8 4 8-4"/></svg></span><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:9px"><span style="font-size:14.5px;font-weight:600;color:var(--color-text,#16233b)">智能综述生成 · 房颤抗凝策略</span><span style="font-size:11px;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:1px 8px;border-radius:6px">待确认引用</span></div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">上次位置：综述草稿已生成，待确认 4 处引用 · 昨天</div></div><button onClick="{{ act.aimed }}" style="height:38px;padding:0 18px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text,#16233b);border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:var(--color-surface-3,#eef3f9)">继续</button></div>
+
+            <div style="display:flex;align-items:center;gap:16px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:16px 18px;box-shadow:var(--shadow-sm)"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-info-soft,#e8f1ff);color:var(--color-info,#1677ff);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h7"/><path d="M7.5 5c0 4-1.5 7-4 8.5"/><path d="M12 20l4-9 4 9"/><path d="M13.4 17h5.2"/></svg></span><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:9px"><span style="font-size:14.5px;font-weight:600;color:var(--color-text,#16233b)">医学翻译 · EN → ZH（24 段）</span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:1px 8px;border-radius:6px">已完成</span></div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">译稿对照已就绪，待写回原文档 · 3 小时前</div></div><button onClick="{{ act.translate }}" style="height:38px;padding:0 18px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text,#16233b);border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:var(--color-surface-3,#eef3f9)">查看</button></div>
+
+            <div style="display:flex;align-items:center;gap:16px;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:16px 18px;box-shadow:var(--shadow-sm)"><span style="width:42px;height:42px;border-radius:11px;background:var(--color-surface-3,#eef3f9);color:var(--color-text-2,#56657f);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/></svg></span><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:9px"><span style="font-size:14.5px;font-weight:600;color:var(--color-text,#16233b)">在线编辑 · 出院小结_张某某</span><span style="font-size:11px;color:var(--color-text-3,#8a98b0);background:var(--color-surface-3,#eef3f9);padding:1px 8px;border-radius:6px">草稿 v5</span></div><div style="font-size:12px;color:var(--color-text-3,#8a98b0);margin-top:4px">上次位置：第 2 段（医嘱）光标处 · 昨天</div></div><button onClick="{{ act.editor }}" style="height:38px;padding:0 18px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text,#16233b);border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;flex-shrink:0" style-hover="background:var(--color-surface-3,#eef3f9)">继续编辑</button></div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== ADMIN CONSOLE ===== -->
+        <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="管理后台" style="padding:24px 28px;display:flex;gap:22px;align-items:flex-start">
+          <!-- admin tabs -->
+          <div style="width:208px;flex-shrink:0;background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:13px;padding:8px;box-shadow:var(--shadow-sm)">
+            <div onClick="{{ atRbac }}" style="{{ atStyle.rbac }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 19a6 6 0 0 1 12 0"/><circle cx="18" cy="9" r="2.2"/></svg>账号与角色 (RBAC)</div>
+            <div onClick="{{ atProvider }}" style="{{ atStyle.provider }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="17" r="1"/></svg>模型 Provider</div>
+            <div onClick="{{ atBranding }}" style="{{ atStyle.branding }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="8" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21a3 3 0 0 0 0-6 2 2 0 0 1 0-4"/></svg>Branding 主题</div>
+            <div onClick="{{ atAudit }}" style="{{ atStyle.audit }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h4"/></svg>审计日志</div>
+          </div>
+
+          <div style="flex:1;min-width:0">
+            <!-- RBAC -->
+            <sc-if value="{{ isRbac }}" hint-placeholder-val="{{ true }}">
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="padding:16px 20px;border-bottom:1px solid var(--color-border,#e3e9f2);display:flex;align-items:center"><div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b)">角色与权限</div><div style="flex:1"></div><button style="height:34px;padding:0 14px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer">+ 新建角色</button></div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr 2fr 0.8fr;padding:11px 20px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);font-size:12px;font-weight:700;color:var(--color-text-3,#8a98b0)"><span>角色</span><span>成员</span><span>关键权限</span><span>状态</span></div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr 2fr 0.8fr;align-items:center;padding:14px 20px;border-bottom:1px solid var(--color-divider,#eef2f8)"><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">系统管理员</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">3 人</span><span style="font-size:12px;color:var(--color-text-2,#56657f)">全部模块 · Provider 配置 · 审计</span><span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:6px">启用</span></span></div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr 2fr 0.8fr;align-items:center;padding:14px 20px;border-bottom:1px solid var(--color-divider,#eef2f8)"><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">临床医师</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">86 人</span><span style="font-size:12px;color:var(--color-text-2,#56657f)">AIMed · 文档 · 翻译 · 高风险写回确认</span><span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:6px">启用</span></span></div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr 2fr 0.8fr;align-items:center;padding:14px 20px;border-bottom:1px solid var(--color-divider,#eef2f8)"><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">科研人员</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">42 人</span><span style="font-size:12px;color:var(--color-text-2,#56657f)">AIMed · 知识库 · 综述生成</span><span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:6px">启用</span></span></div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr 2fr 0.8fr;align-items:center;padding:14px 20px"><span style="font-size:13.5px;font-weight:600;color:var(--color-text,#16233b)">医务行政</span><span style="font-size:13px;color:var(--color-text-2,#56657f)">11 人</span><span style="font-size:12px;color:var(--color-text-2,#56657f)">模板库 · 审计日志（只读）· 合规</span><span><span style="font-size:11px;color:var(--color-text-3,#8a98b0);background:var(--color-surface-3,#eef3f9);padding:2px 8px;border-radius:6px">受限</span></span></div>
+            </div>
+            </sc-if>
+
+            <!-- PROVIDER -->
+            <sc-if value="{{ isProvider }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="background:var(--color-surface,#fff);border:1.5px solid var(--color-primary,#1677ff);border-radius:14px;box-shadow:var(--shadow-sm);padding:18px"><div style="display:flex;align-items:center;gap:10px"><span style="width:38px;height:38px;border-radius:10px;background:var(--color-primary-soft,#e2eeff);color:var(--color-primary,#1677ff);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg></span><div><div style="font-size:14.5px;font-weight:700;color:var(--color-text,#16233b)">私有化模型</div><div style="font-size:11.5px;color:var(--color-success,#16a05c)">● 当前生效 · 院内部署</div></div></div><div style="margin-top:14px;font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.8">入口：<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">https://llm.intra.hospital.cn</span><br/>模型：Qwen-Med-72B（私有微调）</div></div>
+                <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:18px"><div style="display:flex;align-items:center;gap:10px"><span style="width:38px;height:38px;border-radius:10px;background:var(--color-surface-3,#eef3f9);color:var(--color-text-2,#56657f);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><div><div style="font-size:14.5px;font-weight:700;color:var(--color-text,#16233b)">公网模型</div><div style="font-size:11.5px;color:var(--color-text-3,#8a98b0)">○ 待命 · 需脱敏门禁通过</div></div></div><div style="margin-top:14px;font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.8">入口：公有云 API（兼容 OpenAI 协议）<br/>调用前强制 PHI/PII 脱敏校验</div></div>
+              </div>
+              <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:18px">
+                <div style="font-size:14px;font-weight:700;color:var(--color-text,#16233b);margin-bottom:12px">Fallback 降级策略</div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                  <span style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;background:var(--color-primary-softer,#f2f7ff);border:1px solid var(--color-primary-soft,#e2eeff);font-size:13px;font-weight:600;color:var(--color-primary,#1677ff)">1 · 私有化模型</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+                  <span style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;background:var(--color-surface-2,#f6f9fd);border:1px solid var(--color-border,#e3e9f2);font-size:13px;font-weight:500;color:var(--color-text-2,#56657f)">2 · 公网模型（脱敏后）</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+                  <span style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;background:var(--color-surface-2,#f6f9fd);border:1px solid var(--color-border,#e3e9f2);font-size:13px;font-weight:500;color:var(--color-text-2,#56657f)">3 · 离线 PubMed 缓存</span>
+                </div>
+                <div style="margin-top:14px;display:flex;gap:8px;padding:11px 13px;border-radius:10px;background:var(--color-warning-soft,#fbf1de);font-size:12.5px;color:var(--color-text-2,#56657f);line-height:1.7"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning,#e2920f)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>脱敏失败或公网不可用时，自动禁用公网调用并切换至私有化 / 离线缓存，前端显示降级徽标。</div>
+              </div>
+            </div>
+            </sc-if>
+
+            <!-- BRANDING -->
+            <sc-if value="{{ isBranding }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);padding:22px">
+              <div style="font-size:15px;font-weight:700;color:var(--color-text,#16233b)">Branding 主题配置</div>
+              <div style="font-size:12.5px;color:var(--color-text-2,#56657f);margin-top:3px;margin-bottom:20px">运行时通过 <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--color-primary,#1677ff)">applyTheme()</span> 注入 <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--color-primary,#1677ff)">:root</span> 的 --color-* 变量，后台可覆盖。点击下方主题即时预览。</div>
+              <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px">
+                <div onClick="{{ thAct.blue }}" style="cursor:pointer;border-radius:13px;border:2px solid var(--color-border,#e3e9f2);overflow:hidden;width:168px" style-hover="border-color:var(--color-primary,#1677ff)"><div style="height:66px;background:linear-gradient(135deg,#1677ff,#0a5fe0);display:flex;align-items:flex-end;padding:8px"><span style="width:30px;height:18px;border-radius:4px;background:#0d1f38"></span></div><div style="padding:10px 12px"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">临床蓝（默认）</div><div style="font-size:11px;color:var(--color-text-3,#8a98b0);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">#1677ff</div></div></div>
+                <div onClick="{{ thAct.green }}" style="cursor:pointer;border-radius:13px;border:2px solid var(--color-border,#e3e9f2);overflow:hidden;width:168px" style-hover="border-color:var(--color-primary,#1677ff)"><div style="height:66px;background:linear-gradient(135deg,#13a065,#0e8553);display:flex;align-items:flex-end;padding:8px"><span style="width:30px;height:18px;border-radius:4px;background:#0d3d2a"></span></div><div style="padding:10px 12px"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">人文绿</div><div style="font-size:11px;color:var(--color-text-3,#8a98b0);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">#13a065</div></div></div>
+                <div onClick="{{ thAct.dark }}" style="cursor:pointer;border-radius:13px;border:2px solid var(--color-border,#e3e9f2);overflow:hidden;width:168px" style-hover="border-color:var(--color-primary,#1677ff)"><div style="height:66px;background:linear-gradient(135deg,#1b2540,#0a0f1c);display:flex;align-items:flex-end;padding:8px"><span style="width:30px;height:18px;border-radius:4px;background:#4d8dff"></span></div><div style="padding:10px 12px"><div style="font-size:13px;font-weight:600;color:var(--color-text,#16233b)">科技深色仪表盘</div><div style="font-size:11px;color:var(--color-text-3,#8a98b0);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">#4d8dff</div></div></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px">
+                <div style="border:1px solid var(--color-border,#e3e9f2);border-radius:11px;padding:14px"><div style="font-size:12px;color:var(--color-text-3,#8a98b0)">机构 Logo</div><div style="margin-top:9px;display:flex;align-items:center;gap:9px"><span style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--color-primary,#1677ff),var(--color-primary-active,#0a5fe0));display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg></span><span style="font-size:12px;color:var(--color-primary,#1677ff);cursor:pointer">更换</span></div></div>
+                <div style="border:1px solid var(--color-border,#e3e9f2);border-radius:11px;padding:14px"><div style="font-size:12px;color:var(--color-text-3,#8a98b0)">圆角</div><div style="margin-top:9px;display:flex;align-items:center;gap:9px"><span style="width:34px;height:34px;border-radius:10px;background:var(--color-primary-soft,#e2eeff)"></span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">10 px</span></div></div>
+                <div style="border:1px solid var(--color-border,#e3e9f2);border-radius:11px;padding:14px"><div style="font-size:12px;color:var(--color-text-3,#8a98b0)">基础字号</div><div style="margin-top:9px;display:flex;align-items:center;gap:9px"><span style="font-size:20px;font-weight:700;color:var(--color-text,#16233b)">A</span><span style="font-size:13px;font-weight:600;color:var(--color-text,#16233b);font-family:ui-monospace,SFMono-Regular,Menlo,monospace">14 px</span></div></div>
+              </div>
+            </div>
+            </sc-if>
+
+            <!-- AUDIT -->
+            <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="padding:16px 20px;border-bottom:1px solid var(--color-border,#e3e9f2);font-size:15px;font-weight:700;color:var(--color-text,#16233b)">审计日志</div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.2fr 1fr;padding:11px 20px;background:var(--color-surface-2,#f6f9fd);border-bottom:1px solid var(--color-border,#e3e9f2);font-size:12px;font-weight:700;color:var(--color-text-3,#8a98b0)"><span>时间</span><span>操作者</span><span>事件</span><span>结果</span></div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.2fr 1fr;align-items:center;padding:13px 20px;border-bottom:1px solid var(--color-divider,#eef2f8);font-size:12.5px;color:var(--color-text-2,#56657f)"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">06-14 11:02:41</span><span>张明 医师</span><span style="color:var(--color-text,#16233b)">AI 写回文档 v5（润色 · 已人工确认）</span><span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:6px">成功</span></span></div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.2fr 1fr;align-items:center;padding:13px 20px;border-bottom:1px solid var(--color-divider,#eef2f8);font-size:12.5px;color:var(--color-text-2,#56657f)"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">06-14 10:58:12</span><span>系统</span><span style="color:var(--color-text,#16233b)">公网调用前 PHI 脱敏校验</span><span><span style="font-size:11px;color:var(--color-warning,#e2920f);background:var(--color-warning-soft,#fbf1de);padding:2px 8px;border-radius:6px">已脱敏</span></span></div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.2fr 1fr;align-items:center;padding:13px 20px;border-bottom:1px solid var(--color-divider,#eef2f8);font-size:12.5px;color:var(--color-text-2,#56657f)"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">06-14 10:30:05</span><span>李研 研究员</span><span style="color:var(--color-text,#16233b)">检索 PubMed · SGLT2i HFpEF</span><span><span style="font-size:11px;color:var(--color-success,#16a05c);background:var(--color-success-soft,#e6f6ed);padding:2px 8px;border-radius:6px">成功</span></span></div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 2.2fr 1fr;align-items:center;padding:13px 20px;font-size:12.5px;color:var(--color-text-2,#56657f)"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">06-14 09:14:33</span><span>王行政</span><span style="color:var(--color-text,#16233b)">尝试访问跨科室文档</span><span><span style="font-size:11px;color:var(--color-danger,#e23b3b);background:var(--color-danger-soft,#fdecec);padding:2px 8px;border-radius:6px">已拒绝</span></span></div>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== GENERIC STATES ===== -->
+        <sc-if value="{{ isStates }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="通用态演示" style="padding:24px 28px">
+          <div style="font-size:19px;font-weight:700;color:var(--color-text,#16233b)">通用态演示</div>
+          <div style="font-size:13px;color:var(--color-text-2,#56657f);margin-top:2px;margin-bottom:18px">空状态 / 加载骨架 / 错误态 / 无权限态 —— 全平台统一规范</div>
+          <div style="display:flex;gap:9px;margin-bottom:20px">
+            <span onClick="{{ stEmpty }}" style="{{ stStyle.empty }}">空状态</span>
+            <span onClick="{{ stLoading }}" style="{{ stStyle.loading }}">加载骨架</span>
+            <span onClick="{{ stError }}" style="{{ stStyle.error }}">错误态</span>
+            <span onClick="{{ stDenied }}" style="{{ stStyle.denied }}">无权限态</span>
+          </div>
+
+          <div style="background:var(--color-surface,#fff);border:1px solid var(--color-border,#e3e9f2);border-radius:14px;box-shadow:var(--shadow-sm);min-height:380px;display:flex;align-items:center;justify-content:center;padding:40px">
+            <sc-if value="{{ isStEmpty }}" hint-placeholder-val="{{ true }}">
+            <div style="text-align:center;max-width:360px"><div style="width:88px;height:88px;border-radius:24px;background:var(--color-surface-2,#f6f9fd);display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3,#8a98b0)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="15"/><line x1="10" y1="13" x2="14" y2="13"/></svg></div><div style="font-size:16px;font-weight:700;color:var(--color-text,#16233b)">还没有文档</div><div style="font-size:13.5px;color:var(--color-text-2,#56657f);margin-top:8px;line-height:1.7">上传论文或从 AIMed 一键生成在线 Word，文档会自动归档到这里。</div><button style="margin-top:18px;height:40px;padding:0 20px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(22,119,255,.26)">上传第一个文档</button></div>
+            </sc-if>
+            <sc-if value="{{ isStLoading }}" hint-placeholder-val="{{ false }}">
+            <div style="width:100%;max-width:560px">
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px"><div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear"></div><div style="flex:1"><div style="height:14px;width:55%;border-radius:6px;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear;margin-bottom:9px"></div><div style="height:11px;width:32%;border-radius:6px;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear"></div></div></div>
+              <div style="height:13px;border-radius:6px;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear;margin-bottom:12px"></div>
+              <div style="height:13px;border-radius:6px;width:92%;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear;margin-bottom:12px"></div>
+              <div style="height:13px;border-radius:6px;width:74%;background:linear-gradient(90deg,var(--color-surface-2,#f6f9fd) 25%,var(--color-surface-3,#eef3f9) 50%,var(--color-surface-2,#f6f9fd) 75%);background-size:450px 100%;animation:shimmer 1.4s infinite linear;margin-bottom:24px"></div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:9px;color:var(--color-text-3,#8a98b0);font-size:13px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary,#1677ff)" stroke-width="2.4" style="animation:spin .8s linear infinite"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg>正在检索 PubMed 并生成带引用的回答…</div>
+            </div>
+            </sc-if>
+            <sc-if value="{{ isStError }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;max-width:380px"><div style="width:88px;height:88px;border-radius:24px;background:var(--color-danger-soft,#fdecec);display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger,#e23b3b)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div><div style="font-size:16px;font-weight:700;color:var(--color-text,#16233b)">模型服务暂不可用</div><div style="font-size:13.5px;color:var(--color-text-2,#56657f);margin-top:8px;line-height:1.7">私有化模型连接超时。系统已自动切换至离线 PubMed 缓存，部分能力受限。</div><div style="display:flex;gap:10px;justify-content:center;margin-top:18px"><button style="height:40px;padding:0 18px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text,#16233b);border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer">查看降级状态</button><button style="height:40px;padding:0 18px;border:none;background:var(--color-primary,#1677ff);color:#fff;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer">重试</button></div></div>
+            </sc-if>
+            <sc-if value="{{ isStDenied }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;max-width:380px"><div style="width:88px;height:88px;border-radius:24px;background:var(--color-warning-soft,#fbf1de);display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning,#e2920f)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><div style="font-size:16px;font-weight:700;color:var(--color-text,#16233b)">无访问权限</div><div style="font-size:13.5px;color:var(--color-text-2,#56657f);margin-top:8px;line-height:1.7">该文档属于「肿瘤中心」知识库，受 RBAC 与租户隔离保护。请联系文档所有者申请访问。</div><button style="margin-top:18px;height:40px;padding:0 20px;border:1px solid var(--color-border,#e3e9f2);background:var(--color-surface,#fff);color:var(--color-text,#16233b);border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer">申请访问权限</button></div>
+            </sc-if>
+          </div>
+        </div>
+        </sc-if>
+
+        <div data-routes-end="1"></div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    authed: false,
+    route: 'aimed',
+    theme: 'blue',
+    navCollapsed: false,
+    loginLoading: false,
+    showUserMenu: false,
+    aimedMode: 'review',
+    openSources: false,
+    activeCite: 0,
+    // editor / writeback
+    wbTab: 'polish',
+    wbApplied: false,
+    // docs
+    docView: 'table',
+    drawerOpen: false,
+    aclOpen: false,
+    // kb
+    kbDetail: null,
+    // translate
+    transStep: 2,
+    // admin
+    adminTab: 'rbac',
+    // states demo
+    stateView: 'empty',
+  };
+
+  THEMES = {
+    blue: {
+      '--color-primary':'#1677ff','--color-primary-hover':'#4096ff','--color-primary-active':'#0a5fe0','--color-primary-soft':'#e2eeff','--color-primary-softer':'#f2f7ff',
+      '--color-bg':'#eef3fb','--color-surface':'#ffffff','--color-surface-2':'#f6f9fd','--color-surface-3':'#eef3f9',
+      '--color-nav-bg':'#0d1f38','--color-nav-bg-2':'#0a1830','--color-nav-text':'#9bacc9','--color-nav-active-text':'#ffffff','--color-nav-active-bg':'rgba(22,119,255,0.20)','--color-nav-hover-bg':'rgba(255,255,255,0.06)','--color-nav-border':'rgba(255,255,255,0.08)',
+      '--color-text':'#16233b','--color-text-2':'#56657f','--color-text-3':'#8a98b0','--color-text-disabled':'#b6c0d2',
+      '--color-border':'#e3e9f2','--color-border-strong':'#cdd6e4','--color-divider':'#eef2f8',
+      '--color-success':'#16a05c','--color-success-soft':'#e6f6ed','--color-warning':'#e2920f','--color-warning-soft':'#fbf1de','--color-danger':'#e23b3b','--color-danger-soft':'#fdecec','--color-info':'#1677ff','--color-info-soft':'#e8f1ff',
+      '--shadow-sm':'0 1px 2px rgba(16,32,64,.07)','--shadow-md':'0 6px 20px rgba(16,32,64,.09)','--shadow-lg':'0 16px 40px rgba(16,32,64,.16)','--ring':'0 0 0 3px rgba(22,119,255,.18)',
+    },
+    green: {
+      '--color-primary':'#13a065','--color-primary-hover':'#1bb574','--color-primary-active':'#0e8553','--color-primary-soft':'#d6f0e2','--color-primary-softer':'#f0faf5',
+      '--color-bg':'#eef8f2','--color-surface':'#ffffff','--color-surface-2':'#f4faf6','--color-surface-3':'#eaf4ee',
+      '--color-nav-bg':'#0d3d2a','--color-nav-bg-2':'#0a3122','--color-nav-text':'#9cbfae','--color-nav-active-text':'#ffffff','--color-nav-active-bg':'rgba(19,160,101,0.26)','--color-nav-hover-bg':'rgba(255,255,255,0.06)','--color-nav-border':'rgba(255,255,255,0.08)',
+      '--color-text':'#173024','--color-text-2':'#566b60','--color-text-3':'#869b90','--color-text-disabled':'#b3c6bc',
+      '--color-border':'#dceae2','--color-border-strong':'#c4d8cc','--color-divider':'#eaf3ee',
+      '--color-success':'#16a05c','--color-success-soft':'#e0f3e9','--color-warning':'#e2920f','--color-warning-soft':'#fbf1de','--color-danger':'#e23b3b','--color-danger-soft':'#fdecec','--color-info':'#13a065','--color-info-soft':'#e2f3ea',
+      '--shadow-sm':'0 1px 2px rgba(16,48,32,.07)','--shadow-md':'0 6px 20px rgba(16,48,32,.09)','--shadow-lg':'0 16px 40px rgba(16,48,32,.16)','--ring':'0 0 0 3px rgba(19,160,101,.20)',
+    },
+    dark: {
+      '--color-primary':'#4d8dff','--color-primary-hover':'#6ba1ff','--color-primary-active':'#3a7cf0','--color-primary-soft':'rgba(77,141,255,.18)','--color-primary-softer':'rgba(77,141,255,.10)',
+      '--color-bg':'#0a0f1c','--color-surface':'#121a2c','--color-surface-2':'#0e1525','--color-surface-3':'#1b2540',
+      '--color-nav-bg':'#070b16','--color-nav-bg-2':'#05080f','--color-nav-text':'#8696b5','--color-nav-active-text':'#ffffff','--color-nav-active-bg':'rgba(77,141,255,0.20)','--color-nav-hover-bg':'rgba(255,255,255,0.05)','--color-nav-border':'rgba(255,255,255,0.07)',
+      '--color-text':'#e7edf9','--color-text-2':'#9fadc7','--color-text-3':'#6b7a96','--color-text-disabled':'#48556e',
+      '--color-border':'#26324e','--color-border-strong':'#36456a','--color-divider':'#1c2740',
+      '--color-success':'#2ec27e','--color-success-soft':'rgba(46,194,126,.16)','--color-warning':'#f0a83c','--color-warning-soft':'rgba(240,168,60,.16)','--color-danger':'#ff5a5a','--color-danger-soft':'rgba(255,90,90,.16)','--color-info':'#4d8dff','--color-info-soft':'rgba(77,141,255,.16)',
+      '--shadow-sm':'0 1px 2px rgba(0,0,0,.4)','--shadow-md':'0 6px 20px rgba(0,0,0,.45)','--shadow-lg':'0 16px 44px rgba(0,0,0,.6)','--ring':'0 0 0 3px rgba(77,141,255,.32)',
+    },
+  };
+
+  componentDidMount(){ this.applyTheme(this.state.theme); }
+
+  applyTheme(name){
+    const t = this.THEMES[name]; if(!t) return;
+    const r = document.documentElement;
+    Object.keys(t).forEach(k => { r.style.setProperty(k, t[k]); document.body.style.setProperty(k, t[k]); });
+  }
+
+  setTheme = (name) => { this.applyTheme(name); this.setState({theme:name}); };
+  go = (r) => { this.setState({route:r, showUserMenu:false}); };
+  doLogin = () => { this.setState({loginLoading:true}); setTimeout(()=>this.setState({loginLoading:false, authed:true}), 1050); };
+  logout = (e) => { if(e&&e.stopPropagation) e.stopPropagation(); this.setState({authed:false, showUserMenu:false}); };
+  toggleNav = () => this.setState(s=>({navCollapsed:!s.navCollapsed}));
+  toggleUserMenu = (e) => { if(e&&e.stopPropagation) e.stopPropagation(); this.setState(s=>({showUserMenu:!s.showUserMenu})); };
+  setMode = (m) => this.setState({aimedMode:m});
+  openCite = (n) => this.setState({openSources:true, activeCite:n});
+
+  navStyle(id){
+    const active = this.state.route===id;
+    const planned = id==='agent';
+    return {
+      display:'flex', alignItems:'center', gap:'12px', padding:'10px 12px', margin:'2px 12px',
+      borderRadius:'10px', cursor: planned?'not-allowed':'pointer', position:'relative',
+      color: active ? 'var(--color-nav-active-text,#fff)' : (planned ? 'var(--color-text-disabled,#5b6b86)' : 'var(--color-nav-text,#9bacc9)'),
+      background: active ? 'var(--color-nav-active-bg,rgba(22,119,255,.20))' : 'transparent',
+      fontWeight: active?600:500, fontSize:'14px', whiteSpace:'nowrap', opacity: planned?0.7:1,
+      boxShadow: active ? 'inset 3px 0 0 var(--color-primary,#1677ff)' : 'none',
+      transition:'background .15s, color .15s',
+    };
+  }
+
+  modeStyle(id){
+    const active = this.state.aimedMode===id;
+    return {
+      display:'flex', alignItems:'center', gap:'10px', padding:'10px 14px', borderRadius:'11px', cursor:'pointer', flexShrink:0,
+      border: active?'1.5px solid var(--color-primary,#1677ff)':'1.5px solid var(--color-border,#e3e9f2)',
+      background: active?'var(--color-primary-softer,#f2f7ff)':'var(--color-surface,#fff)',
+      color: active?'var(--color-primary,#1677ff)':'var(--color-text-2,#56657f)',
+      boxShadow: active?'0 2px 10px rgba(22,119,255,.14)':'none', transition:'all .15s',
+    };
+  }
+
+  themeDot(name, color){
+    const active = this.state.theme===name;
+    return {
+      width: this.state.navCollapsed?'18px':'26px', height:'26px', borderRadius:'7px', cursor:'pointer', background:color, flex:this.state.navCollapsed?'none':'1',
+      border: active?'2px solid #fff':'2px solid transparent', boxShadow: active?'0 0 0 2px var(--color-primary,#1677ff)':'inset 0 0 0 1px rgba(255,255,255,.18)', transition:'all .15s',
+    };
+  }
+
+  srcCardStyle(checked, disabled){
+    return {
+      display:'flex', alignItems:'flex-start', gap:'10px', padding:'11px 12px', borderRadius:'10px', cursor: disabled?'not-allowed':'pointer',
+      border: checked?'1.5px solid var(--color-primary,#1677ff)':'1px solid var(--color-border,#e3e9f2)',
+      background: checked?'var(--color-primary-softer,#f2f7ff)':'var(--color-surface,#fff)', opacity: disabled?0.5:1, transition:'all .15s',
+    };
+  }
+  srcBox(checked){
+    return { width:'18px', height:'18px', borderRadius:'5px', flexShrink:0, marginTop:'1px', display:'flex', alignItems:'center', justifyContent:'center',
+      background: checked?'var(--color-primary,#1677ff)':'transparent', border: checked?'none':'1.5px solid var(--color-border-strong,#cdd6e4)' };
+  }
+  srcTag(tag){
+    const map = { 'PubMed':['var(--color-info,#1677ff)','var(--color-info-soft,#e8f1ff)'], '已上传':['var(--color-success,#16a05c)','var(--color-success-soft,#e6f6ed)'], '离线缓存':['var(--color-warning,#e2920f)','var(--color-warning-soft,#fbf1de)'], '受限':['var(--color-text-3,#8a98b0)','var(--color-surface-3,#eef3f9)'] };
+    const c = map[tag]||map['受限'];
+    return { fontSize:'10.5px', fontWeight:600, color:c[0], background:c[1], padding:'2px 7px', borderRadius:'6px', flexShrink:0, whiteSpace:'nowrap' };
+  }
+
+  chipStyle(n){
+    const on = this.state.openSources && this.state.activeCite===n;
+    return {
+      display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:'17px', height:'17px', padding:'0 4px',
+      marginLeft:'2px', borderRadius:'5px', fontSize:'11px', fontWeight:700, cursor:'pointer', verticalAlign:'super', lineHeight:1,
+      color: on?'#fff':'var(--color-primary,#1677ff)', background: on?'var(--color-primary,#1677ff)':'var(--color-primary-soft,#e2eeff)', transition:'all .12s',
+    };
+  }
+  srcRowStyle(n){
+    const on = this.state.activeCite===n;
+    return { padding:'10px 12px', borderRadius:'10px', border: on?'1.5px solid var(--color-primary,#1677ff)':'1px solid var(--color-border,#e3e9f2)', background: on?'var(--color-primary-softer,#f2f7ff)':'var(--color-surface-2,#f6f9fd)', transition:'all .15s' };
+  }
+
+  setWb = (t) => this.setState({wbTab:t, wbApplied:false});
+  applyWb = () => { this.setState({wbApplied:true}); setTimeout(()=>this.setState({wbApplied:false}), 2600); };
+  wbTabStyle(id){
+    const active = this.state.wbTab===id;
+    return { flex:1, textAlign:'center', padding:'9px 4px', fontSize:'13px', fontWeight:active?600:500, cursor:'pointer',
+      color: active?'var(--color-primary,#1677ff)':'var(--color-text-2,#56657f)', borderBottom: active?'2px solid var(--color-primary,#1677ff)':'2px solid transparent', transition:'all .15s' };
+  }
+  setDocView = (v) => this.setState({docView:v});
+  docViewStyle(id){ const a=this.state.docView===id; return { width:'34px',height:'30px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'8px',cursor:'pointer', background:a?'var(--color-surface,#fff)':'transparent', color:a?'var(--color-primary,#1677ff)':'var(--color-text-3,#8a98b0)', boxShadow:a?'var(--shadow-sm)':'none' }; }
+  setAdminTab = (t) => this.setState({adminTab:t});
+  adminTabStyle(id){ const a=this.state.adminTab===id; return { display:'flex',alignItems:'center',gap:'10px',padding:'10px 13px',borderRadius:'9px',cursor:'pointer',fontSize:'13.5px',fontWeight:a?600:500, color:a?'var(--color-primary,#1677ff)':'var(--color-text-2,#56657f)', background:a?'var(--color-primary-softer,#f2f7ff)':'transparent', transition:'all .15s' }; }
+  openKb = (k) => this.setState({kbDetail:k});
+  closeKb = () => this.setState({kbDetail:null});
+  setStateView = (v) => this.setState({stateView:v});
+  stateTabStyle(id){ const a=this.state.stateView===id; return { padding:'8px 16px',borderRadius:'9px',fontSize:'13.5px',fontWeight:a?600:500,cursor:'pointer', color:a?'#fff':'var(--color-text-2,#56657f)', background:a?'var(--color-primary,#1677ff)':'var(--color-surface,#fff)', border:a?'none':'1px solid var(--color-border,#e3e9f2)', transition:'all .15s' }; }
+
+  renderVals(){
+    const s = this.state;
+    const r = s.route;
+    const titles = { aimed:['工作空间','AIMed 学术助手'], kb:['工作空间','医疗知识库'], translate:['工作空间','医学翻译'], templates:['工作空间','医疗模板库'], docs:['文档与任务','文档中心'], recent:['文档与任务','最近任务'], admin:['管理','管理后台'], editor:['文档与任务','在线编辑器 · 医疗 AI'], states:['管理','通用态演示'] };
+    const tt = titles[r] || ['工作空间','AIMed 学术助手'];
+    const modeMeta = {
+      general:['通用问答','开放式医学问答 · 不强制引用来源','可用：知识库 / 当前文档；PubMed 与上传文件按需启用'],
+      review:['深度文献伴读','逐篇精读上传文献，给出带定位的结论','已锁定：上传文件 + PubMed 检索'],
+      landscape:['科研态势分析','聚合领域文献，输出热点与趋势','已锁定：PubMed；上传文件可选'],
+      evidence:['循证证据溯源','对结论做证据分级并回溯到原文段落','已锁定：上传文件 + PubMed + 知识库'],
+      synthesis:['智能综述生成','基于多来源生成结构化综述草稿','已锁定：上传文件 + 知识库 + PubMed'],
+      writing:['学术写作辅助','润色与表达优化，不引入新事实','仅基于当前文档 / 选区，外部检索置灰'],
+    };
+    const mm = modeMeta[s.aimedMode] || modeMeta.review;
+
+    // sources vary by mode
+    const writingMode = s.aimedMode==='writing';
+    const generalMode = s.aimedMode==='general';
+    const sources = [
+      { label:'PubMed 在线检索', desc: generalMode?'按需启用':'生物医学文献库', tag: writingMode?'受限':'PubMed', checked: !writingMode && !generalMode, disabled: writingMode },
+      { label:'上传文件', desc:'HFpEF_SGLT2_2023.pdf', tag:'已上传', checked: !writingMode || generalMode? !generalMode : true, disabled: false },
+      { label:'医疗知识库', desc:'心血管 · 内分泌 KB', tag: generalMode?'受限':'离线缓存', checked: s.aimedMode==='evidence'||s.aimedMode==='synthesis', disabled: false },
+      { label:'当前文档', desc: writingMode?'编辑器选区':'文档中心 · 未选择', tag: writingMode?'已上传':'受限', checked: writingMode, disabled: !writingMode },
+    ].map(x => ({ ...x, style:this.srcCardStyle(x.checked, x.disabled), boxStyle:this.srcBox(x.checked), tagStyle:this.srcTag(x.tag) }));
+
+    const tplCatColor = { '临床文书':['var(--color-primary,#1677ff)','var(--color-primary-soft,#e2eeff)'], '知情同意':['var(--color-danger,#e23b3b)','var(--color-danger-soft,#fdecec)'], '科研写作':['var(--color-success,#16a05c)','var(--color-success-soft,#e6f6ed)'], '医务行政':['var(--color-warning,#e2920f)','var(--color-warning-soft,#fbf1de)'] };
+    const tplTag = (cat)=>{ const c=tplCatColor[cat]||tplCatColor['临床文书']; return { position:'absolute', top:'10px', left:'10px', fontSize:'10.5px', fontWeight:600, color:c[0], background:c[1], padding:'2px 8px', borderRadius:'6px' }; };
+    const templates = [
+      {name:'出院小结',cat:'临床文书',dept:'通用 · 含诊断/医嘱栏'},
+      {name:'入院病历',cat:'临床文书',dept:'通用 · 现病史模板'},
+      {name:'手术知情同意书',cat:'知情同意',dept:'外科 · 合规版'},
+      {name:'特殊检查同意书',cat:'知情同意',dept:'影像 / 介入科'},
+      {name:'科研综述框架',cat:'科研写作',dept:'IMRaD · 含引用区'},
+      {name:'病例报告 (Case Report)',cat:'科研写作',dept:'投稿格式'},
+      {name:'多学科会诊单',cat:'医务行政',dept:'MDT · 流程表'},
+      {name:'转诊与随访单',cat:'医务行政',dept:'双向转诊'},
+    ].map(t=>({ ...t, tagStyle: tplTag(t.cat) }));
+    const act = {}; ['aimed','kb','agent','translate','templates','docs','recent','admin','editor','states'].forEach(id=>{ act[id]= id==='agent'?(()=>{}):(()=>this.go(id)); });
+    const mAct = {}; ['general','review','landscape','evidence','synthesis','writing'].forEach(m=>mAct[m]=()=>this.setMode(m));
+    const thAct = { blue:()=>this.setTheme('blue'), green:()=>this.setTheme('green'), dark:()=>this.setTheme('dark') };
+    const nav = {}; ['aimed','kb','agent','translate','templates','docs','recent','admin','states'].forEach(id=>nav[id]=this.navStyle(id));
+    const mStyle = {}; ['general','review','landscape','evidence','synthesis','writing'].forEach(m=>mStyle[m]=this.modeStyle(m));
+
+    const collapsed = s.navCollapsed;
+    const sidebarStyle = { width: collapsed?'72px':'248px', flexShrink:0, background:'var(--color-nav-bg,#0d1f38)', display:'flex', flexDirection:'column', overflow:'hidden', transition:'width .2s ease', borderRight:'1px solid var(--color-nav-border,rgba(255,255,255,.08))' };
+    const labelHide = { display: collapsed?'none':'block' };
+    const navItemLabelStyle = collapsed ? 'display:none' : 'display:block;overflow:hidden;text-overflow:ellipsis';
+    const brandLabelStyle = collapsed ? 'display:none' : 'display:block';
+    const navGroupLabelStyle = collapsed ? 'display:none' : 'padding:14px 24px 6px;font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--color-nav-text,#9bacc9);opacity:.65';
+    const plannedTagStyle = collapsed ? 'display:none' : 'margin-left:auto;font-size:10px;font-weight:600;color:var(--color-text-disabled,#5b6b86);background:rgba(255,255,255,.07);padding:2px 7px;border-radius:6px';
+    const adminTagStyle = collapsed ? 'display:none' : 'margin-left:auto;font-size:9.5px;font-weight:700;color:#fff;background:var(--color-primary,#1677ff);padding:2px 7px;border-radius:6px;letter-spacing:.5px';
+    const themeSwitchWrapStyle = 'display:flex;align-items:center;gap:8px;padding:'+(collapsed?'8px 0':'4px 8px 8px')+';justify-content:center;flex-direction:'+(collapsed?'column':'row');
+
+    return {
+      authed: s.authed, isLogin: !s.authed,
+      loginLoading: s.loginLoading, loginBtnLabel: s.loginLoading?'登录中…':'登录',
+      isAimed: r==='aimed', isKb: r==='kb', isTranslate: r==='translate', isTemplates: r==='templates', isDocs: r==='docs', isRecent: r==='recent', isAdmin: r==='admin', isEditor: r==='editor', isStates: r==='states',
+      crumbModule: tt[0], pageTitle: tt[1],
+      nav, act, mAct, thAct, mStyle, sources, templates,
+      navCollapsed: collapsed, sidebarStyle, labelHide, navItemLabelStyle, brandLabelStyle, navGroupLabelStyle, plannedTagStyle, adminTagStyle, themeSwitchWrapStyle,
+      thStyle: { blue:this.themeDot('blue','#1677ff'), green:this.themeDot('green','#13a065'), dark:this.themeDot('dark','#1b2440') },
+      showUserMenu: s.showUserMenu, toggleUserMenu: this.toggleUserMenu, toggleNav: this.toggleNav, logout: this.logout, doLogin: this.doLogin,
+      aimedMode: s.aimedMode, modeTitle: mm[0], modeDesc: mm[1], modeSourceHint: mm[2],
+      openSources: s.openSources, activeCite: s.activeCite,
+      cite1:()=>this.openCite(1), cite2:()=>this.openCite(2), cite3:()=>this.openCite(3),
+      chipStyle1:this.chipStyle(1), chipStyle2:this.chipStyle(2), chipStyle3:this.chipStyle(3),
+      srcStyle1:this.srcRowStyle(1), srcStyle2:this.srcRowStyle(2), srcStyle3:this.srcRowStyle(3),
+      wbTab: s.wbTab, wbApplied: s.wbApplied, setWb:this.setWb, applyWb:this.applyWb,
+      wbStyle: { polish:this.wbTabStyle('polish'), proof:this.wbTabStyle('proof'), trans:this.wbTabStyle('trans') },
+      wbActPolish:()=>this.setWb('polish'), wbActProof:()=>this.setWb('proof'), wbActTrans:()=>this.setWb('trans'),
+      isPolish: s.wbTab==='polish', isProof: s.wbTab==='proof', isTrans: s.wbTab==='trans',
+      docView: s.docView, dvStyle:{ table:this.docViewStyle('table'), card:this.docViewStyle('card') }, dvTable:()=>this.setDocView('table'), dvCard:()=>this.setDocView('card'),
+      isDocTable: s.docView==='table', isDocCard: s.docView==='card',
+      drawerOpen: s.drawerOpen, openDrawer:()=>this.setState({drawerOpen:true}), closeDrawer:()=>this.setState({drawerOpen:false}),
+      aclOpen: s.aclOpen, openAcl:()=>this.setState({aclOpen:true}), closeAcl:()=>this.setState({aclOpen:false}),
+      adminTab: s.adminTab, atStyle:{ rbac:this.adminTabStyle('rbac'), provider:this.adminTabStyle('provider'), branding:this.adminTabStyle('branding'), audit:this.adminTabStyle('audit') },
+      atRbac:()=>this.setAdminTab('rbac'), atProvider:()=>this.setAdminTab('provider'), atBranding:()=>this.setAdminTab('branding'), atAudit:()=>this.setAdminTab('audit'),
+      isRbac: s.adminTab==='rbac', isProvider: s.adminTab==='provider', isBranding: s.adminTab==='branding', isAudit: s.adminTab==='audit',
+      kbDetail: s.kbDetail, hasKbDetail: !!s.kbDetail, isKbGrid: !s.kbDetail, openKb:this.openKb, closeKb:this.closeKb, kbDetailName: s.kbDetail||'',
+      kbActCardio:()=>this.openKb('心血管疾病知识库'), kbActOnco:()=>this.openKb('肿瘤学知识库'), kbActEndo:()=>this.openKb('内分泌代谢知识库'),
+      stateView: s.stateView, stStyle:{ empty:this.stateTabStyle('empty'), loading:this.stateTabStyle('loading'), error:this.stateTabStyle('error'), denied:this.stateTabStyle('denied') },
+      stEmpty:()=>this.setStateView('empty'), stLoading:()=>this.setStateView('loading'), stError:()=>this.setStateView('error'), stDenied:()=>this.setStateView('denied'),
+      isStEmpty: s.stateView==='empty', isStLoading: s.stateView==='loading', isStError: s.stateView==='error', isStDenied: s.stateView==='denied',
+    };
+  }
+}
+</script>
+</body>
+</html>

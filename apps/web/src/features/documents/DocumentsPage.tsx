@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { Upload, Download, Trash2, RotateCcw, FileText, LayoutGrid, List } from "lucide-react";
 import ModuleShell from "../portal/ModuleShell";
 import { api } from "../../lib/api";
+import { Tag, EmptyState, SkeletonList } from "../../components";
 
 interface DocRow {
   document_id: string;
@@ -18,9 +20,18 @@ const SPACES = [
   { id: "app", label: "应用文档" },
 ] as const;
 
+const PERM_TONE: Record<string, "primary" | "success" | "warning" | "neutral"> = {
+  owner: "primary",
+  manage: "primary",
+  edit: "success",
+  comment: "warning",
+  view: "neutral",
+};
+
 export default function DocumentsPage() {
   const [space, setSpace] = useState("my");
   const [recycle, setRecycle] = useState(false);
+  const [view, setView] = useState<"table" | "card">("table");
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -28,9 +39,7 @@ export default function DocumentsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const q = recycle
-        ? "?recycle=true"
-        : `?space=${space}${space === "app" ? "" : ""}`;
+      const q = recycle ? "?recycle=true" : `?space=${space}`;
       const res = await api<{ documents: DocRow[] }>(`/api/documents${q}`);
       setDocs(res.documents);
     } catch (e) {
@@ -72,13 +81,33 @@ export default function DocumentsPage() {
     load();
   }
 
+  function restore(id: string) {
+    api(`/api/documents/${id}/restore`, { method: "POST" }).then(load);
+  }
+
+  const actions = (d: DocRow) =>
+    recycle ? (
+      <button className="btn btn-sm btn-secondary" onClick={() => restore(d.document_id)}>
+        <RotateCcw size={14} /> 恢复
+      </button>
+    ) : (
+      <>
+        <button className="btn btn-sm btn-ghost" onClick={() => download(d.document_id)}>
+          <Download size={14} /> 下载
+        </button>
+        <button className="btn btn-sm btn-ghost" onClick={() => deleteDoc(d.document_id)}>
+          <Trash2 size={14} /> 删除
+        </button>
+      </>
+    );
+
   return (
     <ModuleShell
       title="文档中心"
-      breadcrumb="文档中心"
+      breadcrumb="文档与任务 · 文档中心"
       toolbar={
-        <label className="primary" style={{ padding: "8px 16px", cursor: "pointer" }}>
-          上传文件
+        <label className="btn btn-primary" style={{ cursor: "pointer" }}>
+          <Upload size={15} /> 上传文件
           <input
             type="file"
             hidden
@@ -90,11 +119,11 @@ export default function DocumentsPage() {
         </label>
       }
     >
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {SPACES.map((s) => (
           <button
             key={s.id}
-            className={!recycle && space === s.id ? "primary" : "ghost"}
+            className={`btn btn-sm ${!recycle && space === s.id ? "btn-primary" : "btn-secondary"}`}
             onClick={() => {
               setRecycle(false);
               setSpace(s.id);
@@ -104,59 +133,122 @@ export default function DocumentsPage() {
           </button>
         ))}
         <button
-          className={recycle ? "primary" : "ghost"}
+          className={`btn btn-sm ${recycle ? "btn-primary" : "btn-secondary"}`}
           onClick={() => setRecycle(true)}
         >
           回收站
         </button>
+        <div style={{ flex: 1 }} />
+        <button
+          className={`btn btn-sm ${view === "table" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setView("table")}
+          title="表格视图"
+          style={{ width: 34, padding: 0 }}
+        >
+          <List size={16} />
+        </button>
+        <button
+          className={`btn btn-sm ${view === "card" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setView("card")}
+          title="卡片视图"
+          style={{ width: 34, padding: 0 }}
+        >
+          <LayoutGrid size={16} />
+        </button>
       </div>
-      {message && <p>{message}</p>}
+
+      {message && (
+        <p style={{ fontSize: 13, color: "var(--color-text-2)", margin: "0 0 12px" }}>{message}</p>
+      )}
+
       {loading ? (
-        <p>加载中…</p>
+        <SkeletonList rows={5} />
       ) : docs.length === 0 ? (
-        <p className="muted">暂无文档</p>
-      ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <EmptyState title={recycle ? "回收站为空" : "暂无文档"} desc="上传 PDF / DOCX 即可在此管理与按权限协作。" />
+      ) : view === "table" ? (
+        <table className="tbl">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #eee" }}>
+            <tr>
               <th>名称</th>
               <th>权限</th>
-              <th>操作</th>
+              <th style={{ width: 200 }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {docs.map((d) => (
-              <tr key={d.document_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                <td style={{ padding: 8 }}>{d.name}</td>
-                <td>{d.effectivePermission}</td>
-                <td style={{ padding: 8 }}>
-                  {!recycle && (
-                    <>
-                      <button className="ghost" onClick={() => download(d.document_id)}>
-                        下载
-                      </button>
-                      <button className="ghost" onClick={() => deleteDoc(d.document_id)}>
-                        删除
-                      </button>
-                    </>
-                  )}
-                  {recycle && (
-                    <button
-                      className="ghost"
-                      onClick={() =>
-                        api(`/api/documents/${d.document_id}/restore`, {
-                          method: "POST",
-                        }).then(load)
-                      }
-                    >
-                      恢复
-                    </button>
-                  )}
+              <tr key={d.document_id}>
+                <td>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <FileText size={16} style={{ color: "var(--color-text-3)" }} />
+                    {d.name}
+                  </span>
+                </td>
+                <td>
+                  <Tag tone={PERM_TONE[d.effectivePermission] ?? "neutral"}>
+                    {d.effectivePermission}
+                  </Tag>
+                </td>
+                <td>
+                  <span style={{ display: "inline-flex", gap: 6 }}>{actions(d)}</span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
+            gap: 14,
+          }}
+        >
+          {docs.map((d) => (
+            <div
+              key={d.document_id}
+              style={{
+                border: "1px solid var(--color-border)",
+                borderRadius: 12,
+                padding: 14,
+                background: "var(--color-surface)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
+                <span
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 9,
+                    background: "var(--color-primary-softer)",
+                    color: "var(--color-primary)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FileText size={18} />
+                </span>
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    minWidth: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={d.name}
+                >
+                  {d.name}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Tag tone={PERM_TONE[d.effectivePermission] ?? "neutral"}>{d.effectivePermission}</Tag>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>{actions(d)}</div>
+            </div>
+          ))}
+        </div>
       )}
     </ModuleShell>
   );
