@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -38,9 +39,13 @@ func Migrate(ctx context.Context, conn *pgx.Conn) error {
 	for _, f := range files {
 		version := strings.TrimSuffix(f, ".sql")
 		var one int
-		if err := conn.QueryRow(ctx, `SELECT 1 FROM schema_migrations WHERE version = $1`, version).Scan(&one); err == nil {
+		err := conn.QueryRow(ctx, `SELECT 1 FROM schema_migrations WHERE version = $1`, version).Scan(&one)
+		if err == nil {
 			fmt.Printf("Skip migration %s\n", version)
 			continue
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("check migration %s: %w", version, err)
 		}
 		sqlBytes, err := migrationsFS.ReadFile("migrations/" + f)
 		if err != nil {
@@ -49,7 +54,7 @@ func Migrate(ctx context.Context, conn *pgx.Conn) error {
 		if _, err := conn.Exec(ctx, string(sqlBytes)); err != nil {
 			return fmt.Errorf("migration %s failed: %w", version, err)
 		}
-		if _, err := conn.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, version); err != nil {
+		if _, err := conn.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, version); err != nil {
 			return err
 		}
 		fmt.Printf("Applied migration %s\n", version)

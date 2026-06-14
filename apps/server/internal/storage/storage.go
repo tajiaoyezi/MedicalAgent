@@ -30,7 +30,9 @@ func New(ctx context.Context, cfg appconfig.Storage) (*Storage, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),
 		awsconfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(orDefault(cfg.AccessKey, "minioadmin"), orDefault(cfg.SecretKey, "minioadmin"), ""),
+			// 凭据缺省只在 config.Load 的 dev MINIO 分支注入（minioadmin）；存储层不再 fail-open 兜底，
+			// 生产/S3 分支凭据为空时让 SDK 鉴权失败（fail-closed）。
+			credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, ""),
 		),
 	)
 	if err != nil {
@@ -43,13 +45,6 @@ func New(ctx context.Context, cfg appconfig.Storage) (*Storage, error) {
 		}
 	})
 	return &Storage{client: client, presign: s3.NewPresignClient(client), bucket: cfg.Bucket}, nil
-}
-
-func orDefault(v, def string) string {
-	if v == "" {
-		return def
-	}
-	return v
 }
 
 func (s *Storage) ensureBucket(ctx context.Context) error {

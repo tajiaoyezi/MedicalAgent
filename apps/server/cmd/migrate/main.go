@@ -22,8 +22,11 @@ func main() {
 	if err := db.Migrate(ctx, conn); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	if err := db.Seed(ctx, conn); err != nil {
+	// 安全：生产环境不注入已知口令的演示 admin/user，避免默认凭据落到生产。
+	if cfg.NodeEnv == "production" {
+		log.Println("生产环境：跳过演示数据 seed")
+	} else if err := db.Seed(ctx, conn); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
-	log.Println("migrate + seed done")
+	log.Println("migrate done")
 }

@@ -10,11 +10,18 @@ import (
 )
 
 // Seed 复刻 migrate.ts seedIfNeeded：值逐字对齐（demo 租户 + 10 权限 + 5 角色 + grants + admin/user 两用户）。
+// 全程包在单事务内：任一步失败整体回滚，避免「只插了 tenant 又被幂等守卫跳过」的中毒库。
 func Seed(ctx context.Context, conn *pgx.Conn) error {
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // Commit 成功后 Rollback 为 no-op
+
 	var existing string
-	if err := conn.QueryRow(ctx, `SELECT tenant_id FROM tenants LIMIT 1`).Scan(&existing); err == nil {
+	if err := tx.QueryRow(ctx, `SELECT tenant_id FROM tenants LIMIT 1`).Scan(&existing); err == nil {
 		fmt.Println("Seed data already exists, skipping")
-		return nil
+		return tx.Commit(ctx)
 	}
 
 	enabledModules, _ := json.Marshal([]string{"aimed", "knowledge", "translation", "templates", "documents", "admin"})
@@ -30,7 +37,7 @@ func Seed(ctx context.Context, conn *pgx.Conn) error {
 	})
 
 	var tenantID string
-	if err := conn.QueryRow(ctx,
+	if err := tx.QueryRow(ctx,
 		`INSERT INTO tenants (name, org_type, enabled_modules, branding)
 		 VALUES ($1, $2, $3::jsonb, $4::jsonb) RETURNING tenant_id`,
 		"MedOffice 演示医院", "hospital", string(enabledModules), string(branding),
@@ -53,7 +60,7 @@ func Seed(ctx context.Context, conn *pgx.Conn) error {
 	permIDs := map[string]string{}
 	for _, p := range perms {
 		var id string
-		if err := conn.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO permissions (name, description) VALUES ($1, $2)
 			 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description
 			 RETURNING permission_id`,
@@ -77,7 +84,7 @@ func Seed(ctx context.Context, conn *pgx.Conn) error {
 	roleIDs := map[string]string{}
 	for _, r := range roleDefs {
 		var id string
-		if err := conn.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO roles (tenant_id, name, slug) VALUES ($1, $2, $3) RETURNING role_id`,
 			tenantID, r.name, r.slug,
 		).Scan(&id); err != nil {
@@ -85,7 +92,7 @@ func Seed(ctx context.Context, conn *pgx.Conn) error {
 		}
 		roleIDs[r.slug] = id
 		for _, perm := range r.perms {
-			if _, err := conn.Exec(ctx,
+			if _, err := tx.Exec(ctx,
 				`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 				id, permIDs[perm],
 			); err != nil {
@@ -104,27 +111,30 @@ func Seed(ctx context.Context, conn *pgx.Conn) error {
 	}
 
 	var adminID, userID string
-	if err := conn.QueryRow(ctx,
+	if err := tx.QueryRow(ctx,
 		`INSERT INTO users (tenant_id, username, password_hash, display_name, dept_id)
 		 VALUES ($1, 'admin', $2, '演示管理员', 'dept-demo') RETURNING user_id`,
 		tenantID, string(adminHash),
 	).Scan(&adminID); err != nil {
 		return err
 	}
-	if err := conn.QueryRow(ctx,
+	if err := tx.QueryRow(ctx,
 		`INSERT INTO users (tenant_id, username, password_hash, display_name, dept_id)
 		 VALUES ($1, 'user', $2, '演示用户', 'dept-demo') RETURNING user_id`,
 		tenantID, string(userHash),
 	).Scan(&userID); err != nil {
 		return err
 	}
-	if _, err := conn.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, adminID, roleIDs["admin"]); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, adminID, roleIDs["admin"]); err != nil {
 		return err
 	}
-	if _, err := conn.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, userID, roleIDs["user"]); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, userID, roleIDs["user"]); err != nil {
 		return err
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
 	fmt.Println("Seed data inserted (admin/admin123, user/user123)")
 	return nil
 }

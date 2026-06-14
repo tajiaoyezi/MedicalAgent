@@ -123,7 +123,7 @@ func Load() Config {
 		NodeEnv:       nodeEnv,
 		Port:          atoi(os.Getenv("API_PORT"), 3001),
 		Host:          env("API_HOST", "0.0.0.0"),
-		SessionSecret: env("SESSION_SECRET", "dev-session-secret-change-me"),
+		SessionSecret: resolveSecret("SESSION_SECRET", "dev-session-secret-change-me", nodeEnv),
 		WebOrigin:     webOrigin,
 		DatabaseURL:   env("DATABASE_URL", "postgres://medoffice:medoffice@localhost:5432/medoffice"),
 		Storage:       st,
