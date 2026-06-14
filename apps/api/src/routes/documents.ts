@@ -463,6 +463,40 @@ export async function registerDocumentRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "无权限" });
       }
 
+      // 校验 principal 合法且属于当前租户，拒绝伪造/任意 principal_id（防越权授权）
+      const VALID_LEVELS = ["owner", "manage", "edit", "comment", "view", "none"];
+      if (
+        !["user", "role", "dept"].includes(body.principalType) ||
+        !VALID_LEVELS.includes(body.permissionLevel) ||
+        !body.principalId
+      ) {
+        return reply.status(400).send({ error: "principalType / permissionLevel / principalId 无效" });
+      }
+      let principalOk = false;
+      if (body.principalType === "user") {
+        // ::text 比较避免非法 UUID 触发 pg 类型错误
+        const r = await client.query(
+          "SELECT 1 FROM users WHERE user_id::text = $1 AND tenant_id = $2",
+          [body.principalId, user.tenantId],
+        );
+        principalOk = r.rows.length > 0;
+      } else if (body.principalType === "role") {
+        const r = await client.query(
+          "SELECT 1 FROM roles WHERE slug = $1 AND tenant_id = $2",
+          [body.principalId, user.tenantId],
+        );
+        principalOk = r.rows.length > 0;
+      } else {
+        const r = await client.query(
+          "SELECT 1 FROM users WHERE dept_id = $1 AND tenant_id = $2 LIMIT 1",
+          [body.principalId, user.tenantId],
+        );
+        principalOk = r.rows.length > 0;
+      }
+      if (!principalOk) {
+        return reply.status(400).send({ error: "principal 不存在或不属于当前租户" });
+      }
+
       await client.query(
         `INSERT INTO document_permissions (tenant_id, document_id, principal_type, principal_id, permission_level)
          VALUES ($1, $2, $3, $4, $5)
