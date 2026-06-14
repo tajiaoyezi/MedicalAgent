@@ -13,6 +13,7 @@ import (
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/editor"
 	"medoffice/server/internal/httpx"
+	"medoffice/server/internal/model"
 	"medoffice/server/internal/routes"
 	"medoffice/server/internal/storage"
 )
@@ -25,6 +26,7 @@ type Deps struct {
 
 // New 构造引擎。中间件顺序复刻 index.ts，再挂各 register*Routes。
 func New(d Deps) *gin.Engine {
+	model.Init(d.Config.Model.CredentialSecret, d.Config.Model.HealthTTLSeconds) // 凭据密钥 + 健康 TTL
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.MaxMultipartMemory = 50 << 20 // 与 @fastify/multipart fileSize 50MB 对齐
@@ -54,5 +56,6 @@ func New(d Deps) *gin.Engine {
 	routes.RegisterEditor(r, d.DB, d.Storage, editorSvc)
 	routes.RegisterBridge(r, d.DB, editorSvc)
 	routes.RegisterPreview(r, d.DB, d.Storage, d.Config.OnlyOffice)
+	routes.RegisterAdminModels(r, d.DB)
 	return r
 }
