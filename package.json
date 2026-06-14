@@ -1,0 +1,16 @@
+{
+  "name": "medoffice-ai",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/api & npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "migrate": "npm run migrate --workspace=apps/api",
+    "smoke": "npm run smoke --workspace=apps/api"
+  }
+}
