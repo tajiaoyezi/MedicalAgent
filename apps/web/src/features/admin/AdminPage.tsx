@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ModuleShell from "../portal/ModuleShell";
 import { api } from "../../lib/api";
+import { Tabs, Tag, EmptyState } from "../../components";
 
 interface UserRow {
   user_id: string;
@@ -21,8 +22,17 @@ interface AuditRow {
   target_id: string | null;
 }
 
+type Tab = "users" | "audit" | "tenant" | "provider";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "users", label: "用户与角色" },
+  { key: "audit", label: "审计日志" },
+  { key: "tenant", label: "租户视图" },
+  { key: "provider", label: "模型 Provider" },
+];
+
 export default function AdminPage() {
-  const [tab, setTab] = useState<"users" | "audit" | "tenant">("users");
+  const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [logs, setLogs] = useState<AuditRow[]>([]);
   const [tenant, setTenant] = useState<Record<string, unknown> | null>(null);
@@ -31,13 +41,9 @@ export default function AdminPage() {
     if (tab === "users") {
       api<{ users: UserRow[] }>("/api/admin/users").then((r) => setUsers(r.users));
     } else if (tab === "audit") {
-      api<{ logs: AuditRow[] }>("/api/admin/audit-logs").then((r) =>
-        setLogs(r.logs),
-      );
-    } else {
-      api<{ tenant: Record<string, unknown> }>("/api/admin/tenant").then((r) =>
-        setTenant(r.tenant),
-      );
+      api<{ logs: AuditRow[] }>("/api/admin/audit-logs").then((r) => setLogs(r.logs));
+    } else if (tab === "tenant") {
+      api<{ tenant: Record<string, unknown> }>("/api/admin/tenant").then((r) => setTenant(r.tenant));
     }
   }, [tab]);
 
@@ -51,30 +57,20 @@ export default function AdminPage() {
   }
 
   return (
-    <ModuleShell title="管理后台" breadcrumb="管理后台">
-      <p className="muted" style={{ marginBottom: 16 }}>
-        本期仅提供用户与角色管理、系统审计日志；模型/知识库/模板/翻译等配置由后续 phase 挂载。
-      </p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {(["users", "audit", "tenant"] as const).map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "primary" : "ghost"}
-            onClick={() => setTab(t)}
-          >
-            {t === "users" ? "用户与角色" : t === "audit" ? "审计日志" : "租户视图"}
-          </button>
-        ))}
+    <ModuleShell title="管理后台" breadcrumb="管理 · 管理后台">
+      <div style={{ marginBottom: 16 }}>
+        <Tabs tabs={TABS} active={tab} onChange={setTab} />
       </div>
+
       {tab === "users" && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="tbl">
           <thead>
             <tr>
               <th>用户名</th>
               <th>显示名</th>
               <th>角色</th>
               <th>状态</th>
-              <th>操作</th>
+              <th style={{ width: 110 }}>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -82,11 +78,23 @@ export default function AdminPage() {
               <tr key={u.user_id}>
                 <td>{u.username}</td>
                 <td>{u.display_name}</td>
-                <td>{(u.roles ?? []).join(", ")}</td>
-                <td>{u.is_enabled ? "启用" : "禁用"}</td>
+                <td>
+                  <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                    {(u.roles ?? []).map((r) => (
+                      <Tag key={r} tone="info">
+                        {r}
+                      </Tag>
+                    ))}
+                  </span>
+                </td>
+                <td>
+                  <Tag tone={u.is_enabled ? "success" : "neutral"}>
+                    {u.is_enabled ? "启用" : "禁用"}
+                  </Tag>
+                </td>
                 <td>
                   <button
-                    className="ghost"
+                    className="btn btn-sm btn-ghost"
                     onClick={() => toggleUser(u.user_id, !u.is_enabled)}
                   >
                     {u.is_enabled ? "禁用" : "启用"}
@@ -97,8 +105,9 @@ export default function AdminPage() {
           </tbody>
         </table>
       )}
+
       {tab === "audit" && (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table className="tbl">
           <thead>
             <tr>
               <th>时间</th>
@@ -110,22 +119,55 @@ export default function AdminPage() {
           <tbody>
             {logs.map((l, i) => (
               <tr key={i}>
-                <td>{new Date(l.created_at).toLocaleString()}</td>
+                <td style={{ color: "var(--color-text-3)", whiteSpace: "nowrap" }}>
+                  {new Date(l.created_at).toLocaleString()}
+                </td>
                 <td>{l.action_type}</td>
                 <td>{l.actor_role}</td>
                 <td>
-                  {l.result}
-                  {l.failure_reason ? ` (${l.failure_reason})` : ""}
+                  <Tag tone={l.result === "成功" || l.result === "success" ? "success" : "danger"}>
+                    {l.result}
+                    {l.failure_reason ? ` · ${l.failure_reason}` : ""}
+                  </Tag>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
       {tab === "tenant" && tenant && (
-        <pre style={{ fontSize: 13, overflow: "auto" }}>
-          {JSON.stringify(tenant, null, 2)}
-        </pre>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+            gap: 12,
+          }}
+        >
+          {Object.entries(tenant).map(([k, v]) => (
+            <div
+              key={k}
+              style={{
+                border: "1px solid var(--color-border)",
+                borderRadius: 10,
+                padding: "10px 13px",
+                background: "var(--color-surface-2)",
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: "var(--color-text-3)", marginBottom: 3 }}>{k}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, wordBreak: "break-all" }}>
+                {v === null || v === undefined ? "—" : String(v)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "provider" && (
+        <EmptyState
+          title="模型 Provider 配置 · 规划中"
+          desc="公网 / 私有化双入口、优先级与 fallback 的 Provider 管理由 c03 model-and-parse 挂载，本期暂不提供。"
+        />
       )}
     </ModuleShell>
   );
