@@ -38,4 +38,4 @@
 ## 7. 依赖、构建与验收
 
 - [x] 7.1 `apps/web/package.json` 增 `lucide-react`；`npm run build --workspace=apps/web` 通过、无类型错误
-- [ ] 7.2 验收：三套主题切换无刷新生效 + branding 覆盖生效；c01 底座冒烟（`npm run smoke --workspace=apps/api`）不回归；门户首页加载 ≤ 2s；逐页对照 `docs/design/` 原型确认还原度
+- [x] 7.2 验收：三套主题切换无刷新生效 + branding 覆盖生效（Playwright 实测 `--color-primary` 取 branding 自定义值）；c01 底座冒烟（`npm run smoke` + `smoke:integration`）不回归；门户首页加载 ≤ 2s（实测 ~63ms）；深色主题 WCAG AA 对比度全达标；逐页对照 `docs/design/` 原型确认还原度
