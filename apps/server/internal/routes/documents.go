@@ -117,8 +117,12 @@ func RegisterDocuments(r *gin.Engine, db *gorm.DB, store *storage.Storage) {
 			httpx.Fail(c, 500, "服务器错误")
 			return
 		}
-		buffer, _ := io.ReadAll(f)
+		buffer, rerr := io.ReadAll(f)
 		f.Close()
+		if rerr != nil { // 含 MaxBytesReader 超限：拒绝而非存半截
+			httpx.Fail(c, 400, "文件读取失败或超出大小限制")
+			return
+		}
 		space := c.PostForm("space")
 		if space == "" {
 			space = "my"
@@ -390,6 +394,11 @@ func RegisterDocuments(r *gin.Engine, db *gorm.DB, store *storage.Storage) {
 		if doc.CurrentVersionID != nil {
 			_ = db.Raw(`SELECT object_key FROM document_versions WHERE version_id = ?`, *doc.CurrentVersionID).Scan(&objectKey).Error
 		}
+		if objectKey == "" {
+			// 无可用版本：不签空 key、不记伪成功审计（Node 此处会 500，这里更明确地 404）
+			httpx.Fail(c, 404, "无可下载版本")
+			return
+		}
 		url, err := store.PresignedURL(c.Request.Context(), objectKey, 300*time.Second)
 		if err != nil {
 			httpx.Fail(c, 500, "服务器错误")
@@ -503,8 +512,12 @@ func RegisterDocuments(r *gin.Engine, db *gorm.DB, store *storage.Storage) {
 			return
 		}
 		f, _ := fh.Open()
-		buffer, _ := io.ReadAll(f)
+		buffer, rerr := io.ReadAll(f)
 		f.Close()
+		if rerr != nil {
+			httpx.Fail(c, 400, "文件读取失败或超出大小限制")
+			return
+		}
 		var nextVersion int
 		_ = db.Raw(`SELECT COALESCE(MAX(document_version), 0) + 1 FROM document_versions WHERE document_id = ?`, id).Scan(&nextVersion).Error
 		versionID := uuid.NewString()
