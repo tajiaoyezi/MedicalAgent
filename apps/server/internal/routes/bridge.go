@@ -73,12 +73,14 @@ func RegisterBridge(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "越权操作被拒绝", "permitted": false})
 			return
 		}
+		// 锁内快照可变字段，避免与并发回调的 UpdateRevision 竞争
+		revision, versionID, docKey := svc.Sessions.Snapshot(session)
 		if editor.RequiresRevisionCheck(body.Method) {
 			if body.ExpectedRevision == "" {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "写回类方法必须提供 expectedRevision", "permitted": false})
 				return
 			}
-			if body.ExpectedRevision != session.Revision {
+			if body.ExpectedRevision != revision {
 				bridgeAudit(user, body.Method, session.DocumentID, "文档已更新，请重新读取上下文")
 				c.JSON(http.StatusConflict, gin.H{"error": "文档已更新，请重新读取上下文", "permitted": false, "staleRevision": true})
 				return
@@ -93,14 +95,14 @@ func RegisterBridge(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 			TenantID: user.TenantID, ActorID: audit.P(user.UserID), ActorRole: roleCSV(user),
 			ActionType: "bridge:" + body.Method, TargetType: audit.P("document"), TargetID: audit.P(session.DocumentID), Result: "成功",
 		})
-		resp := gin.H{"permitted": true, "revision": session.Revision, "documentId": session.DocumentID, "docKey": session.DocumentKey}
+		resp := gin.H{"permitted": true, "revision": revision, "documentId": session.DocumentID, "docKey": docKey}
 		if saveIntentID != "" {
 			resp["saveIntentId"] = saveIntentID
 		}
 		if editor.IsTextExportMethod(body.Method) {
 			resp["redactionGatewayAnchor"] = gin.H{
 				"anchorType": "c09_redaction_gateway", "exportKind": "document_text",
-				"documentId": session.DocumentID, "versionId": session.VersionID,
+				"documentId": session.DocumentID, "versionId": versionID,
 			}
 			resp["isOriginalTextExport"] = true
 		}

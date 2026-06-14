@@ -109,11 +109,12 @@ func RegisterEditor(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *edi
 			return
 		}
 		svc.Sessions.Touch(session)
+		_, versionID, _ := svc.Sessions.Snapshot(session) // 锁内读，避免与并发回调写竞争
 		var ver struct {
 			ObjectKey string `gorm:"column:object_key"`
 			TenantID  string `gorm:"column:tenant_id"`
 		}
-		_ = db.Raw(`SELECT object_key, tenant_id FROM document_versions WHERE version_id = ? AND document_id = ?`, session.VersionID, session.DocumentID).Scan(&ver).Error
+		_ = db.Raw(`SELECT object_key, tenant_id FROM document_versions WHERE version_id = ? AND document_id = ?`, versionID, session.DocumentID).Scan(&ver).Error
 		if ver.ObjectKey == "" {
 			httpx.Fail(c, 404, "版本不存在")
 			return

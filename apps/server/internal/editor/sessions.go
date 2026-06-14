@@ -135,6 +135,14 @@ func (s *SessionStore) Touch(sess *EditorSession) {
 	sess.ExpiresAt = time.Now().Add(s.callbackTTL)
 }
 
+// Snapshot 在锁内读取会话可变字段（Revision/VersionID/DocumentKey），避免与 UpdateRevision（回调路径写）竞争。
+// 不可变字段（TenantID/UserID/DocumentID/各 token）可直接读，无需快照。
+func (s *SessionStore) Snapshot(sess *EditorSession) (revision, versionID, documentKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return sess.Revision, sess.VersionID, sess.DocumentKey
+}
+
 func (s *SessionStore) UpdateRevision(sess *EditorSession, versionID, revision, documentKey string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

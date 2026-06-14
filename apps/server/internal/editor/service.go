@@ -197,7 +197,8 @@ func (s *Service) ProcessSaveCallback(ctx context.Context, db *gorm.DB, sess *Ed
 	s.Metrics.RecordAttempt()
 	s.Sessions.Touch(sess)
 
-	if body.Key != "" && body.Key != sess.DocumentKey {
+	_, _, docKey := s.Sessions.Snapshot(sess) // 锁内读 DocumentKey，避免与并发回调的 UpdateRevision 竞争
+	if body.Key != "" && body.Key != docKey {
 		s.Metrics.RecordFailure()
 		_ = audit.Write(db, audit.Entry{
 			TenantID: sess.TenantID, ActorID: audit.P(actorID), ActorRole: audit.P(actorRole),
