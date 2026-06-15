@@ -1,7 +1,25 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { collectClientErrors, openRoute, snapshot } from "./helpers";
+
+/**
+ * 删除当前列表里所有同名行，逐行删到 0，得到干净基线。
+ * 上传不按文件名去重，多次运行会累积同名文档；故断言「恰好 1 行」前需先清干净。
+ * 调用前须已注册 `page.on("dialog", (d) => d.accept())` 处理原生删除确认。
+ */
+async function deleteAllByName(table: Locator, name: string): Promise<void> {
+  // 关键：先等表体加载完成再计数——表格在 /api/documents 返回后才渲染，
+  // openRoute 只等门户外壳；过早 count() 会得到 0、漏删导致同名行累积。
+  await expect(table).toBeVisible();
+  const rows = table.locator("tbody tr").filter({ hasText: name });
+  for (let guard = 0; guard < 50; guard++) {
+    const c = await rows.count();
+    if (c === 0) break;
+    await rows.first().getByRole("button", { name: "删除" }).click();
+    await expect(rows).toHaveCount(c - 1);
+  }
+}
 
 // 文档中心（管理员视角）：tab 切换、列表渲染、上传、删除、打开跳转。
 // 源真值：DocumentsPage.tsx —— 四个 tab 为 <button>（我的文档/团队文档/应用文档/回收站，
@@ -56,24 +74,21 @@ test.describe("文档中心", () => {
     const filePath = path.join(ARTIFACT_DIR, UPLOAD_NAME);
     fs.writeFileSync(filePath, "MedOffice E2E 上传探针文本。\n", "utf-8");
 
+    page.on("dialog", (d) => d.accept());
     await openRoute(page, ROUTE);
     const table = page.locator("table.tbl");
 
-    // 容忍上一次遗留：若已存在同名行，先删除（处理原生 confirm 弹窗）。
-    page.on("dialog", (d) => d.accept());
-    const existing = table.locator("tbody tr").filter({ hasText: UPLOAD_NAME });
-    if (await existing.count()) {
-      await existing.first().getByRole("button", { name: "删除" }).click();
-      await expect(table.locator("tbody tr").filter({ hasText: UPLOAD_NAME })).toHaveCount(0);
-    }
+    // 清掉历史遗留的同名行，建立干净基线（上传不去重名，会累积）。
+    await deleteAllByName(table, UPLOAD_NAME);
 
     // 触发上传：直接对隐藏的 input[type=file] setInputFiles。
     await page.locator('input[type="file"]').setInputFiles(filePath);
     await expect(page.getByText("上传成功")).toBeVisible();
 
-    // 断言上传文件名出现在「我的文档」列表。
-    const uploadedRow = table.locator("tbody tr").filter({ hasText: UPLOAD_NAME });
-    await expect(uploadedRow).toHaveCount(1);
+    // 干净基线下上传 1 个，应恰好 1 行。
+    await expect(
+      table.locator("tbody tr").filter({ hasText: UPLOAD_NAME }),
+    ).toHaveCount(1);
     await snapshot(page, "documents-after-upload");
 
     expect(errors).toEqual([]);
@@ -91,17 +106,24 @@ test.describe("文档中心", () => {
     await openRoute(page, ROUTE);
     const table = page.locator("table.tbl");
 
-    let row = table.locator("tbody tr").filter({ hasText: UPLOAD_NAME });
-    if ((await row.count()) === 0) {
-      await page.locator('input[type="file"]').setInputFiles(filePath);
-      await expect(page.getByText("上传成功")).toBeVisible();
-      row = table.locator("tbody tr").filter({ hasText: UPLOAD_NAME });
-      await expect(row).toHaveCount(1);
-    }
+    // 干净基线：清掉历史遗留，再上传恰好 1 个作为待删项。
+    await deleteAllByName(table, UPLOAD_NAME);
+    await page.locator('input[type="file"]').setInputFiles(filePath);
+    await expect(page.getByText("上传成功")).toBeVisible();
+    await expect(
+      table.locator("tbody tr").filter({ hasText: UPLOAD_NAME }),
+    ).toHaveCount(1);
 
     // 点删除（原生 confirm 已自动 accept），断言它从「我的文档」消失。
-    await row.first().getByRole("button", { name: "删除" }).click();
-    await expect(table.locator("tbody tr").filter({ hasText: UPLOAD_NAME })).toHaveCount(0);
+    await table
+      .locator("tbody tr")
+      .filter({ hasText: UPLOAD_NAME })
+      .first()
+      .getByRole("button", { name: "删除" })
+      .click();
+    await expect(
+      table.locator("tbody tr").filter({ hasText: UPLOAD_NAME }),
+    ).toHaveCount(0);
     await snapshot(page, "documents-after-delete");
 
     // 进一步证据：删除后应进入回收站。注意多次运行会累积同名软删条目，故断言「至少 1 条」。
