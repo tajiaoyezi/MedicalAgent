@@ -1,32 +1,17 @@
 import { test, expect } from "@playwright/test";
 import type { APIRequestContext } from "@playwright/test";
-import { collectClientErrors, snapshot } from "./helpers";
+import {
+  collectClientErrors,
+  ensureSeedImage,
+  SEED_IMAGE_NAME,
+  snapshot,
+} from "./helpers";
 
 // 编辑器（/editor/:id）与预览（/preview/:id）是门户外壳之外的独立宿主路由。
 // 文档类型决定落点：可编辑（docx 等）→ 编辑器；图片/PDF/OFD → 预览（EditorPage 自动改判）。
 // 故按「类型」显式取文档，不依赖「第一个文档」（会被其它用例的上传打乱、导致非确定性）。
 // 外部 ONLYOFFICE DS（:8080）放宽：只断宿主头部/配置接口/AI 面板（host 侧 UI），
 // 不依赖 DS 真实渲染或 JWT 链路；不触发高风险写回确认（医疗红线）。
-
-const SPACES = ["my", "team", "app"] as const;
-const SEED_IMAGE = "smoke-parse.png"; // 种子图片文档 → 预览类宿主
-
-/** 按确切名称跨空间查文档 id；取不到返回 null。 */
-async function findDocByName(
-  request: APIRequestContext,
-  name: string,
-): Promise<string | null> {
-  for (const space of SPACES) {
-    const res = await request.get(`/api/documents?space=${space}`);
-    if (!res.ok()) continue;
-    const body = (await res.json()) as {
-      documents?: Array<{ document_id: string; name: string }>;
-    };
-    const hit = body.documents?.find((d) => d.name === name);
-    if (hit) return hit.document_id;
-  }
-  return null;
-}
 
 /** 上传一个可编辑文档（.docx 按扩展名受理，/api/editor/open 返回编辑器配置而非改判预览），返回 id。 */
 async function uploadEditableDoc(request: APIRequestContext): Promise<string> {
@@ -48,15 +33,16 @@ async function uploadEditableDoc(request: APIRequestContext): Promise<string> {
 }
 
 test.describe("编辑器与预览（管理员）", () => {
-  test("文档中心点「打开」既有文档进入独立宿主路由", async ({ page }) => {
+  test("文档中心点「打开」既有文档进入独立宿主路由", async ({ page, request }) => {
     const errors = collectClientErrors(page);
+    await ensureSeedImage(request); // 确保存在可预览图片文档（套件自给自足）
     await page.goto("/documents");
     await expect(page.getByRole("heading", { name: "文档中心" })).toBeVisible();
 
     // 点种子图片行的「打开」→ navigate(/editor/:id)，图片随后被改判为 /preview/:id
     const seedRow = page
       .locator("table.tbl tbody tr")
-      .filter({ hasText: SEED_IMAGE });
+      .filter({ hasText: SEED_IMAGE_NAME });
     await expect(seedRow).toHaveCount(1);
     await seedRow.getByRole("button", { name: "打开" }).click();
 
@@ -137,8 +123,7 @@ test.describe("编辑器与预览（管理员）", () => {
     request,
   }) => {
     const errors = collectClientErrors(page);
-    const docId = await findDocByName(request, SEED_IMAGE);
-    test.skip(!docId, "种子图片文档缺失，跳过");
+    const docId = await ensureSeedImage(request);
 
     const previewPromise = page.waitForResponse(
       (r) =>

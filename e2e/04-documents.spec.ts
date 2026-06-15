@@ -1,7 +1,13 @@
 import { test, expect, type Locator } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { collectClientErrors, openRoute, snapshot } from "./helpers";
+import {
+  collectClientErrors,
+  ensureSeedImage,
+  openRoute,
+  SEED_IMAGE_NAME,
+  snapshot,
+} from "./helpers";
 
 /**
  * 删除当前列表里所有同名行，逐行删到 0，得到干净基线。
@@ -24,7 +30,7 @@ async function deleteAllByName(table: Locator, name: string): Promise<void> {
 // 文档中心（管理员视角）：tab 切换、列表渲染、上传、删除、打开跳转。
 // 源真值：DocumentsPage.tsx —— 四个 tab 为 <button>（我的文档/团队文档/应用文档/回收站，
 // 选中态 btn-primary）；上传为 <label class=btn-primary> 含「上传文件」+ 隐藏 input[type=file]；
-// 既有文档 smoke-parse.png（owner，操作 打开/下载/删除）；删除用原生 window.confirm
+// 既有图片文档由 ensureSeedImage 自建（owner，操作 打开/下载/删除）；删除用原生 window.confirm
 // 「确认删除到回收站？」；「打开」navigate 到 /editor/:id（EditorPage 可能 redirect 到 /preview/:id）。
 
 const ROUTE = "/documents";
@@ -33,8 +39,9 @@ const ARTIFACT_DIR = "e2e/.artifacts";
 const UPLOAD_NAME = "e2e-upload.txt";
 
 test.describe("文档中心", () => {
-  test("四个 tab 可切换且列表渲染既有文档", async ({ page }) => {
+  test("四个 tab 可切换且列表渲染既有文档", async ({ page, request }) => {
     const errors = collectClientErrors(page);
+    await ensureSeedImage(request); // 确保存在一张既有图片文档（套件自给自足，不依赖 smoke 脚本）
     await openRoute(page, ROUTE);
 
     // 关键渲染：面包屑、标题、上传入口、表头。
@@ -46,8 +53,8 @@ test.describe("文档中心", () => {
     await expect(table.locator("thead").getByText("权限")).toBeVisible();
     await expect(table.locator("thead").getByText("操作")).toBeVisible();
 
-    // 既有文档 smoke-parse.png：owner 权限 + 操作含 打开/下载/删除。
-    const seedRow = table.locator("tbody tr").filter({ hasText: "smoke-parse.png" });
+    // 既有图片文档：owner 权限 + 操作含 打开/下载/删除。
+    const seedRow = table.locator("tbody tr").filter({ hasText: SEED_IMAGE_NAME });
     await expect(seedRow).toHaveCount(1);
     await expect(seedRow.getByText("owner")).toBeVisible();
     await expect(seedRow.getByRole("button", { name: "打开" })).toBeVisible();
@@ -135,13 +142,14 @@ test.describe("文档中心", () => {
     expect(errors).toEqual([]);
   });
 
-  test("点既有文档「打开」跳转到编辑器或预览路由", async ({ page }) => {
+  test("点既有文档「打开」跳转到编辑器或预览路由", async ({ page, request }) => {
     const errors = collectClientErrors(page);
+    await ensureSeedImage(request); // 确保存在一张既有图片文档
     await openRoute(page, ROUTE);
 
     const seedRow = page
       .locator("table.tbl tbody tr")
-      .filter({ hasText: "smoke-parse.png" });
+      .filter({ hasText: SEED_IMAGE_NAME });
     await expect(seedRow).toHaveCount(1);
     await seedRow.getByRole("button", { name: "打开" }).click();
 
