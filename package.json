@@ -17,6 +17,11 @@
     "smoke:onlyoffice": "cd apps/server && go run ./cmd/smoke/onlyoffice",
     "smoke:editor-authz": "cd apps/server && go run ./cmd/smoke/editor_authz",
     "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03",
-    "smoke:c04": "cd apps/server && go run ./cmd/smoke/c04"
+    "smoke:c04": "cd apps/server && go run ./cmd/smoke/c04",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report e2e/.report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
   }
 }
