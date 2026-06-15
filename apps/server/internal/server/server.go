@@ -3,17 +3,21 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/memstore"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"medoffice/server/internal/aimed"
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/editor"
 	"medoffice/server/internal/httpx"
 	"medoffice/server/internal/model"
+	"medoffice/server/internal/pubmed"
+	"medoffice/server/internal/rag"
 	"medoffice/server/internal/routes"
 	"medoffice/server/internal/storage"
 )
@@ -57,5 +61,11 @@ func New(d Deps) *gin.Engine {
 	routes.RegisterBridge(r, d.DB, editorSvc)
 	routes.RegisterPreview(r, d.DB, d.Storage, d.Config.OnlyOffice)
 	routes.RegisterAdminModels(r, d.DB)
+
+	// c04 AIMed RAG：PubMed 在线/离线双路径（本期公网默认关闭）+ RAG 引擎 + 索引就绪事件订阅。
+	pubSvc := pubmed.NewService(pubmed.NewOnlineProvider("", 5*time.Second), pubmed.NewOfflineProvider(), false)
+	ragEngine := rag.NewEngine(pubSvc)
+	rag.RegisterIndexConsumer(d.DB) // 订阅 c03 indexing_handoff「索引就绪」事件构建内存检索索引
+	routes.RegisterAIMed(r, d.DB, d.Storage, aimed.NewService(ragEngine))
 	return r
 }

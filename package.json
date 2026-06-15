@@ -16,6 +16,7 @@
     "smoke:authz": "cd apps/server && go run ./cmd/smoke/authz",
     "smoke:onlyoffice": "cd apps/server && go run ./cmd/smoke/onlyoffice",
     "smoke:editor-authz": "cd apps/server && go run ./cmd/smoke/editor_authz",
-    "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03"
+    "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03",
+    "smoke:c04": "cd apps/server && go run ./cmd/smoke/c04"
   }
 }
