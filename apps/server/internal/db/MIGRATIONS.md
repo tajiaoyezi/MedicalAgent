@@ -10,7 +10,8 @@
 | 004 | c03-model-and-parse | `model_providers` / `model_routes` / `provider_health_checks` / `visual_parse_providers` + `model:manage` 权限点授予 admin |
 | 005 | c03-model-and-parse | `document_parse_jobs` / `document_visual_parse_results` + `document_event_consumptions`（消费侧记账，非 §18） |
 | 006 | c03-model-and-parse | `document_chunks`（含 `chunk_acl` 物理列）/ `embeddings`（`chunk_id` 外键回连，无 `tenant_id` 列） |
-| 007+ | c04-aimed-rag-citation 起 | （**必须 ≥007**，排在 006 之后） |
+| 007 | c04-aimed-rag-citation | `conversations` / `messages` / `citations` / `agent_runs` / `agent_steps` / `tool_calls` / `feedbacks`（唯一建表 owner=c04；`feedbacks.subject_id` 多态无 FK；`agent_checkpoints` 不建） |
+| 008+ | c05-ai-panel-recent-tasks 起 | （**必须 ≥008**，排在 007 之后） |
 
 ## 横切契约
 
