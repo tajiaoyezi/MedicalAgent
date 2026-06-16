@@ -19,9 +19,12 @@
     "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03",
     "smoke:c04": "cd apps/server && go run ./cmd/smoke/c04",
     "test:e2e": "playwright test",
-    "test:e2e:report": "playwright show-report e2e/.report"
+    "test:e2e:report": "playwright show-report e2e/.report",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.0"
+    "@playwright/test": "^1.61.0",
+    "@types/node": "^25.9.3",
+    "typescript": "^5.9.3"
   }
 }

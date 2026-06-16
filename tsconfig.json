@@ -1,0 +1,17 @@
+{
+  // 仅服务 Playwright E2E 套件（e2e/ + playwright.config.ts）的 IDE 类型检查与 `tsc --noEmit`。
+  // 用例运行不读它（Playwright 自带 esbuild 转译）；apps/web 有自己的 tsconfig，互不影响。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}
