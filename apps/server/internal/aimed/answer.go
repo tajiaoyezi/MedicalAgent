@@ -2,6 +2,9 @@ package aimed
 
 import (
 	"fmt"
+	"log"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -158,7 +161,12 @@ func (s *Service) Answer(db *gorm.DB, req AnswerRequest) (AnswerResult, error) {
 	if err := citation.Save(db, conv.TenantID, msgID, inputs); err != nil {
 		return AnswerResult{}, err
 	}
-	cites, _ := citation.ListByMessage(db, conv.TenantID, msgID)
+	cites, lerr := citation.ListByMessage(db, conv.TenantID, msgID)
+	if lerr != nil {
+		// 读取失败不丢答案（content 内已含结构化「参考资料」），但不静默吞错——记日志；
+		// 返回的 citations 为空（前端点击定位降级），审计 citations 计数据实为 0。
+		log.Printf("aimed: 读取 message %s 引用失败: %v", msgID, lerr)
+	}
 
 	_ = audit.Write(db, audit.Entry{
 		TenantID: conv.TenantID, ActorID: audit.P(conv.UserID), ActorRole: audit.P(strings.Join(req.User.RoleSlugs, ",")),
@@ -208,11 +216,26 @@ func (s *Service) generateProse(db *gorm.DB, user auth.AuthUser, query string, c
 	return b.String()
 }
 
+var markerRe = regexp.MustCompile(`\[(\d+)\]`)
+
+// sanitizeMarkers 移除模型 prose 中超出有效引用序号 [1..max] 的悬空/越界角标，
+// 防止前端把无对应 citation 的 [n] 渲染成可点击角标（marker→citation 方向校验，确定性「关键结论」段不受影响）。
+// 有效范围内的角标（含重复）保留——同一来源可被多次引用。max<=0 时移除全部角标。
+func sanitizeMarkers(prose string, max int) string {
+	return markerRe.ReplaceAllStringFunc(prose, func(m string) string {
+		n, _ := strconv.Atoi(m[1 : len(m)-1])
+		if n >= 1 && n <= max {
+			return m
+		}
+		return ""
+	})
+}
+
 // composeAnswer 拼装最终答案：分析正文 + 关键结论（带 [n] 角标，n↔citations 一一对应）+ 结构化参考资料 + 免责声明 + 草稿标记。
 func composeAnswer(prose string, cands []rag.Candidate) string {
 	var b strings.Builder
 	b.WriteString("## 分析\n")
-	b.WriteString(prose)
+	b.WriteString(sanitizeMarkers(prose, len(cands)))
 	b.WriteString("\n\n## 关键结论\n")
 	for _, c := range cands {
 		title := c.SourceTitle
