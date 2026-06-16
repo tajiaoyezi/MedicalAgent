@@ -302,15 +302,21 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 			httpx.Fail(c, 400, "rating 必须为 赞 或 踩")
 			return
 		}
-		if body.Rating == "踩" && body.Reason != "" && !aimed.IsValidFeedbackReason(body.Reason) {
-			httpx.Fail(c, 400, "无效的反馈原因")
-			return
+		// §8.10.5：reason 为「踩」专属维度——踩必取 7 项之一，赞不携带 reason（清空避免污染统计）。
+		reason := body.Reason
+		if body.Rating == "踩" {
+			if !aimed.IsValidFeedbackReason(reason) {
+				httpx.Fail(c, 400, "无效的反馈原因")
+				return
+			}
+		} else {
+			reason = ""
 		}
 		if _, err := aimed.GetMessage(db, u.TenantID, u.UserID, msgID); err != nil {
 			httpx.Fail(c, 404, "消息不存在")
 			return
 		}
-		if err := aimed.WriteFeedback(db, u.TenantID, u.UserID, "message", msgID, body.Rating, body.Reason, body.Comment); err != nil {
+		if err := aimed.WriteFeedback(db, u.TenantID, u.UserID, "message", msgID, body.Rating, reason, body.Comment); err != nil {
 			httpx.Fail(c, 500, "服务器错误")
 			return
 		}

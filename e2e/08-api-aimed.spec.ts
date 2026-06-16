@@ -473,6 +473,35 @@ test.describe("c04 AIMed 扩展端点契约", () => {
     );
     expect(resp.status()).toBe(404);
   });
+
+  // #18 反馈校验：踩必取 §8.10.5 七项之一，缺/非法 reason → 400（修复前缺 reason 可静默落库）
+  test("POST /messages/:id/feedback 踩缺 reason → 400", async ({ request }) => {
+    expect(assistantMsgId).toBeTruthy();
+    const resp = await request.post(`/api/aimed/messages/${assistantMsgId}/feedback`, {
+      data: { rating: "踩" },
+    });
+    await dump("feedback-down-no-reason", resp);
+    expect(resp.status()).toBe(400);
+  });
+
+  test("POST /messages/:id/feedback 踩 + 合法 reason → 200", async ({ request }) => {
+    expect(assistantMsgId).toBeTruthy();
+    const resp = await request.post(`/api/aimed/messages/${assistantMsgId}/feedback`, {
+      data: { rating: "踩", reason: "不准确" },
+    });
+    await dump("feedback-down-valid", resp);
+    expect(resp.status()).toBe(200);
+  });
+
+  // #14 赞携带任意 reason 不应污染统计：接口接受但 reason 被清空（断言 200，不报错）
+  test("POST /messages/:id/feedback 赞携带 reason → 200（reason 被清空）", async ({ request }) => {
+    expect(assistantMsgId).toBeTruthy();
+    const resp = await request.post(`/api/aimed/messages/${assistantMsgId}/feedback`, {
+      data: { rating: "赞", reason: "随便填的脏串" },
+    });
+    await dump("feedback-up-with-reason", resp);
+    expect(resp.status()).toBe(200);
+  });
 });
 
 // 高危修复回归（fix/c04-highrisk-acl-isolation）：

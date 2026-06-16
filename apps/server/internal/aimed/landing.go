@@ -169,15 +169,20 @@ func createOnlineDocument(db *gorm.DB, store *storage.Storage, user auth.AuthUse
 }
 
 // WriteRecentTask 保存成功后写最近任务（§6.4 source 规范枚举值，ref_type=conversation，幂等）。
-// 展示与恢复编排归 c05，本能力仅写入条目。
+// 展示与恢复编排归 c05，本能力仅写入条目。source 取会话自身的规范来源（aimed→AIMed 学术助手、
+// kb_qa→医疗知识库问答），不硬编码，避免 kb_qa 会话经落地路径被误标为 AIMed 来源。
 func WriteRecentTask(db *gorm.DB, user auth.AuthUser, conv *Conversation) error {
 	taskID := uuid.NewString()
+	source := conv.Source
+	if source == "" {
+		source = SourceAimed
+	}
 	return db.Exec(
 		`INSERT INTO recent_tasks (task_id, tenant_id, user_id, source, title, ref_type, ref_id, updated_at)
 		 VALUES (?, ?, ?, ?, ?, 'conversation', ?, NOW())
 		 ON CONFLICT (tenant_id, user_id, ref_type, ref_id)
 		 DO UPDATE SET title = EXCLUDED.title, updated_at = NOW(), deleted_at = NULL`,
-		taskID, user.TenantID, user.UserID, SourceAimed, conv.Title, conv.ConversationID,
+		taskID, user.TenantID, user.UserID, source, conv.Title, conv.ConversationID,
 	).Error
 }
 

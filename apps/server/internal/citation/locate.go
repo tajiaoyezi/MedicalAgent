@@ -90,6 +90,11 @@ func locateDocument(db *gorm.DB, user auth.AuthUser, c *Citation) LocateResult {
 		if !chunkacl.Allows(acl, user) {
 			return LocateResult{OK: false, Message: MsgUnavailable}
 		}
+		// 版本漂移：引用落库时的 chunk 已被新版本 supersede/移除（citations 不存 document_version），
+		// 旧 page/section 锚点可能不再对应当前版本布局 → 不返回过期锚点，降级到文档级手动查看（§8.9）。
+		if !chunkCurrent(db, user.TenantID, c.ChunkID) {
+			return LocateResult{OK: true, Action: "open_document", Target: map[string]any{"documentId": c.DocumentID}, Message: MsgChunkFail}
+		}
 	}
 	// chunk 精确定位：有页码/段落则定位，否则降级到文档
 	if c.Page == nil && c.ParagraphIndex == nil && c.ChunkID == "" {
@@ -103,6 +108,13 @@ func locateDocument(db *gorm.DB, user auth.AuthUser, c *Citation) LocateResult {
 		"documentId": c.DocumentID, "kbId": c.KBID, "chunkId": c.ChunkID,
 		"page": c.Page, "paragraphIndex": c.ParagraphIndex, "section": c.Section,
 	}}
+}
+
+// chunkCurrent 判断引用指向的 chunk 是否仍为当前版本（存在且未被 supersede）。
+func chunkCurrent(db *gorm.DB, tenantID, chunkID string) bool {
+	var n int64
+	db.Raw(`SELECT COUNT(*) FROM document_chunks WHERE id = ? AND tenant_id = ? AND superseded = FALSE`, chunkID, tenantID).Scan(&n)
+	return n > 0
 }
 
 func joinRoles(u auth.AuthUser) string {
