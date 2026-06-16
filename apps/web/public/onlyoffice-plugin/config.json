@@ -5,7 +5,7 @@
   "variations": [
     {
       "description": "MedOffice AI document bridge",
-      "url": "code.js",
+      "url": "index.html",
       "icons": [],
       "isViewer": false,
       "EditorsSupport": ["word", "cell", "slide", "pdf"],

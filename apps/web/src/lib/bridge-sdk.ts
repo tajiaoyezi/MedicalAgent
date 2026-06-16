@@ -1,6 +1,8 @@
 const BASE_ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  // 桥插件由 ONLYOFFICE DS 经 host.docker.internal:5173 加载，其回包 event.origin 为该值（dev 真实 DS）。
+  "http://host.docker.internal:5173",
 ]);
 
 const extraOrigins = new Set<string>();

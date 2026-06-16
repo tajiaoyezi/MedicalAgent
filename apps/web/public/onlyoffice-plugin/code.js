@@ -11,8 +11,10 @@
   let revision = "";
 
   function reply(requestId, payload) {
-    if (!window.parent) return;
-    window.parent.postMessage(
+    // 真实 DS 下插件运行在嵌套 sandbox iframe：window.parent 仅到 DS 编辑器帧、不达宿主；
+    // 改 window.top 直达最外层宿主 React 应用（宿主在 message 监听里取 event.source=本插件 window 以回发命令）。
+    if (!window.top) return;
+    window.top.postMessage(
       { channel: "medoffice-bridge", requestId, ...payload },
       "*",
     );
@@ -135,20 +137,9 @@
       case "createPresentation":
         return { created: true, slideOutline: params?.slideOutline };
       case "saveDocument":
-        return new Promise((resolve, reject) => {
-          window.Asc.plugin.callCommand(
-            function () {
-              Api.Save();
-              return true;
-            },
-            false,
-            false,
-            function (ok) {
-              if (ok) resolve({ saveTriggered: true });
-              else reject(new Error("保存命令未执行"));
-            },
-          );
-        });
+        // 不在插件内 Api.Save：那会产生 status=2 的 user_edit 版本，并与随后的 forcesave 同内容去重，导致拿不到 ai_writeback。
+        // 实际保存由宿主 arm 写回意图后、后端经命令服务触发 DS forcesave(status=6) 完成 → 落 ai_writeback 版本（改动已经协同同步到 DS）。
+        return { saveTriggered: true };
       default:
         throw new Error("未知方法: " + method);
     }
@@ -179,9 +170,12 @@
   });
 
   window.Asc.plugin.init = function () {
-    window.parent.postMessage(
-      { channel: "medoffice-bridge-ready", ready: true },
-      "*",
-    );
+    // 经 window.top 向宿主发就绪信号；宿主据 event.source 锁定本插件 window 作为后续命令投递目标。
+    if (window.top) {
+      window.top.postMessage(
+        { channel: "medoffice-bridge-ready", ready: true },
+        "*",
+      );
+    }
   };
 })(window);

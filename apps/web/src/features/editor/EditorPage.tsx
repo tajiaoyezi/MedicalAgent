@@ -38,9 +38,13 @@ export default function EditorPage() {
 
     const onReady = (event: MessageEvent) => {
       if (event.data?.channel === "medoffice-bridge-ready") {
-        const iframe = editorRef.current?.querySelector("iframe");
-        if (iframe?.contentWindow) {
-          bridgeRef.current?.setTarget(iframe.contentWindow);
+        // 关键修复：目标须是**插件 window**（嵌套 sandbox iframe，宿主无法 querySelector），
+        // 取就绪包的 event.source（即插件 window）作为命令投递目标；DS 编辑器 iframe 不是插件、投不进。
+        if (event.source) {
+          bridgeRef.current?.setTarget(event.source as Window);
+          if (import.meta.env.DEV) {
+            (window as unknown as { __medbridgeReady?: boolean }).__medbridgeReady = true;
+          }
         }
       }
     };
@@ -69,6 +73,10 @@ export default function EditorPage() {
 
         const bridge = createBridge(res.bridgeToken, res.revision);
         bridgeRef.current = bridge;
+        // DEV-only：暴露 bridge 供 e2e（12-onlyoffice-live）驱动真实写回（headless 无法在 DS 画布内做选区）。生产构建剥离。
+        if (import.meta.env.DEV) {
+          (window as unknown as { __medbridge?: MedOfficeBridge }).__medbridge = bridge;
+        }
 
         if (editorRef.current && window.DocsAPI) {
           const { bridgeToken: _bt, revision: _rev, mimeType: _mime, ...ooConfig } =
@@ -79,10 +87,7 @@ export default function EditorPage() {
               ...ooConfig,
               events: {
                 onDocumentReady: () => {
-                  const iframe = editorRef.current?.querySelector("iframe");
-                  if (iframe?.contentWindow) {
-                    bridge.setTarget(iframe.contentWindow);
-                  }
+                  // 桥目标由插件就绪包的 event.source 设定（见 onReady），此处不再用 DS 编辑器 iframe（投不进嵌套插件）。
                   // 文档打开后默认展示医疗 AI 面板（§5.4/§14.6/§14.8，触发唯一 owner=c05）。
                   setAiFocus("document");
                   setAiOpen(true);
