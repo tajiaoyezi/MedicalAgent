@@ -28,7 +28,8 @@ export default function EditorPage() {
   const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiCommand, setAiCommand] = useState("");
+  const [aiFocus, setAiFocus] = useState<"document" | "selection">("document");
+  const [docType, setDocType] = useState("docx");
 
   useEffect(() => {
     if (!documentId) return;
@@ -44,9 +45,8 @@ export default function EditorPage() {
       }
     };
 
-    const onAiPanel = (event: Event) => {
-      const detail = (event as CustomEvent).detail as { command?: string };
-      setAiCommand(detail?.command ?? "");
+    const onAiPanel = () => {
+      setAiFocus("document");
       setAiOpen(true);
     };
 
@@ -83,6 +83,13 @@ export default function EditorPage() {
                   if (iframe?.contentWindow) {
                     bridge.setTarget(iframe.contentWindow);
                   }
+                  // 文档打开后默认展示医疗 AI 面板（§5.4/§14.6/§14.8，触发唯一 owner=c05）。
+                  setAiFocus("document");
+                  setAiOpen(true);
+                  bridge
+                    .getDocumentType()
+                    .then((r) => setDocType(r.data?.type ?? "docx"))
+                    .catch(() => setDocType("docx"));
                 },
               },
             },
@@ -128,14 +135,15 @@ export default function EditorPage() {
           在线编辑 · 权限 {permission}
         </span>
         <div style={{ flex: 1 }} />
+        {/* 顶部自定义按钮「医疗空间」：打开面板并聚焦文档级 AI 功能区 */}
         <button
           className="btn btn-sm btn-primary"
           onClick={() => {
+            setAiFocus("document");
             setAiOpen(true);
-            setAiCommand("polish");
           }}
         >
-          医疗 AI 面板
+          医疗空间
         </button>
       </header>
 
@@ -154,12 +162,67 @@ export default function EditorPage() {
             ref={editorRef}
             style={{ width: "100%", height: "100%" }}
           />
+
+          {/* 选区浮层入口（润色 / 翻译 / 解释 / 补引用）：选中文本后由此发起，读类就地、写类经确认网关 */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 16,
+              left: 16,
+              display: "flex",
+              gap: 6,
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
+              padding: 6,
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <span style={{ fontSize: 11, color: "var(--color-text-3)", alignSelf: "center" }}>选区浮层</span>
+            {["润色", "翻译", "解释", "补引用"].map((a) => (
+              <button
+                key={a}
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  setAiFocus("selection");
+                  setAiOpen(true);
+                }}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* 右侧固定图标「医疗 AI」入口 */}
+        {!aiOpen && (
+          <button
+            title="医疗 AI"
+            onClick={() => {
+              setAiFocus("document");
+              setAiOpen(true);
+            }}
+            style={{
+              width: 44,
+              borderLeft: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+              cursor: "pointer",
+              fontSize: 18,
+            }}
+          >
+            🩺
+          </button>
+        )}
         {aiOpen && (
           <AIPanel
             bridge={bridgeRef.current}
-            initialCommand={aiCommand}
-            onClose={() => setAiOpen(false)}
+            docType={docType}
+            initialFocus={aiFocus}
+            onClose={() => {
+              // 经 c02 面板控制类收起，且不改动文档内容（§9.3 关闭面板）
+              void bridgeRef.current?.closeAIPanel();
+              setAiOpen(false);
+            }}
           />
         )}
       </div>

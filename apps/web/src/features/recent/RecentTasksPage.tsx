@@ -20,6 +20,9 @@ interface Task {
   titlePreview: string;
   timeGroup: string;
   updatedAt: string;
+  restorable: boolean;
+  canContinue: boolean;
+  refType?: string | null;
 }
 
 const GROUP_LABEL: Record<string, string> = {
@@ -52,6 +55,20 @@ export default function RecentTasksPage() {
       body: JSON.stringify({ title: newTitle }),
     });
     load();
+  }
+
+  // 查看：经恢复分发器按 ref_type 回源（详情由各来源 owner 保证）。
+  async function view(id: string) {
+    try {
+      const res = await api<Record<string, unknown>>(`/api/recent-tasks/${id}/restore`);
+      if (res.restorable === false) {
+        alert("医疗数字员工执行历史规划中，暂不可恢复。");
+        return;
+      }
+      alert(`恢复来源：${res.source}\n动作：${res.action}\n（详情由对应模块加载）`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "恢复失败");
+    }
   }
 
   async function remove(id: string, title: string) {
@@ -128,6 +145,17 @@ export default function RecentTasksPage() {
                       <Tag tone="info">{t.source}</Tag>
                     </div>
                   </div>
+                  {t.restorable && (
+                    <Button size="sm" variant="ghost" onClick={() => view(t.taskId)}>
+                      查看
+                    </Button>
+                  )}
+                  {/* 继续追问仅会话类来源（AIMed / 医疗知识库问答）可用 */}
+                  {t.canContinue && (
+                    <Button size="sm" variant="ghost" onClick={() => view(t.taskId)}>
+                      继续追问
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" icon={<Pencil size={14} />} onClick={() => rename(t.taskId, t.title)}>
                     重命名
                   </Button>

@@ -63,6 +63,10 @@ export class MedOfficeBridge {
     return this.revision;
   }
 
+  getBridgeToken() {
+    return this.bridgeToken;
+  }
+
   private async authorize(
     method: string,
     extra: Record<string, unknown> = {},
@@ -193,6 +197,44 @@ export class MedOfficeBridge {
     return result;
   }
 
+  async getDocumentType() {
+    const { result } = await this.invoke<{ type: string }>("getDocumentType");
+    return result;
+  }
+
+  async getDocumentId() {
+    const { result } = await this.invoke<{ documentId: string }>("getDocumentId");
+    return result;
+  }
+
+  async getDocumentTitle() {
+    const { result } = await this.invoke<{ title: string }>("getDocumentTitle");
+    return result;
+  }
+
+  async insertComment(range: unknown, comment: string) {
+    const { result } = await this.invoke("insertComment", { range, comment });
+    return result;
+  }
+
+  async insertCitation(position: unknown, citation: unknown) {
+    const { result } = await this.invoke("insertCitation", { position, citation });
+    return result;
+  }
+
+  async createNewDocument(content: string, templateId?: string) {
+    const { result } = await this.invoke<{ documentId?: string }>(
+      "createNewDocument",
+      { content, templateId },
+    );
+    return result;
+  }
+
+  async applyStyle(style: Record<string, unknown>) {
+    const { result } = await this.invoke("applyStyle", style);
+    return result;
+  }
+
   async openAIPanel(command: string, payload?: Record<string, unknown>) {
     const auth = await this.authorize("openAIPanel");
     if (auth.revision) this.revision = auth.revision;
@@ -201,6 +243,14 @@ export class MedOfficeBridge {
         detail: { command, payload },
       }),
     );
+  }
+
+  async closeAIPanel() {
+    try {
+      await this.authorize("closeAIPanel");
+    } catch {
+      // 关闭面板属纯收起，授权失败不应阻断 UI 收起
+    }
   }
 
   async getConfirmPreview(originalText: string, modifiedText: string) {
