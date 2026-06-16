@@ -26,11 +26,19 @@ func TestClassifyRiskKeywordStillWorks(t *testing.T) {
 }
 
 // 良性科普/文献综述不应被误判高风险（避免保守化后全量误拦）。
+// 含 PR#24 复审指出的误报回归用例：英文给药缩写与普通英文词碰撞、中文「频次词+通用量词」碰撞。
 func TestClassifyRiskBenignNotFlagged(t *testing.T) {
 	cases := []string{
 		"这篇综述总结了近五年肺癌免疫治疗的研究进展。",
 		"RCT 与队列研究在证据等级上的差异主要体现在偏倚控制。",
 		"该指南讨论了筛查策略与随访间隔的循证依据。",
+		// 英文缩写碰撞：复述 PubMed 摘要中的普通英文词，不应误判
+		"He placed a bid on the auction and the prn function returned a value.",
+		"A BID study design was used to control for confounders.",
+		// 中文通用量词碰撞：频次词 + 片/支/袋 的良性表述，不应误判
+		"研究团队由一支队伍组成，每次会议讨论进展。",
+		"每天吃一片面包当早餐有助于补充能量。",
+		"每次饮用一袋冲剂可补充电解质。",
 	}
 	for _, c := range cases {
 		if rt, high := ClassifyRisk(c); high {
