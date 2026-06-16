@@ -129,6 +129,9 @@ test.describe("c05 最近任务页：来源差异与列表项操作", () => {
   });
 });
 
+// 前提：上传的是合成 docx（纯文本字节），ONLYOFFICE DS 会走告警/error 分支、不触发 onDocumentReady，
+// 故面板不会自动展开（§5.4 默认展示触发依赖 ready），右侧固定图标「医疗 AI」保持可见（与 07 用例同口径）。
+// 若改用真实 docx 或 DS 变宽容触发 ready，应改为先关闭自动展开的面板再断言图标。
 test.describe("c05 编辑器宿主：医疗 AI 面板三类入口", () => {
   async function uploadDocx(request: APIRequestContext): Promise<string> {
     const up = await request.post("/api/documents/upload", {
