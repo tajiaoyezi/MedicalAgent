@@ -143,6 +143,8 @@ func (e *Engine) Retrieve(db *gorm.DB, req RetrieveRequest) (RetrieveResult, err
 	// 4. 权限过滤（六维，先于 rerank 与注入）
 	cands, dropped := filterPermissions(db, req.User, cands)
 	recordStep(db, req.User.TenantID, runID, "permission_filter", fmt.Sprintf("候选 %d", rawCount), fmt.Sprintf("保留 %d 丢弃 %d", len(cands), dropped), map[string]any{"dropped": dropped})
+	// 「找到 N 篇」对用户展示的是**授权后**可访问命中数，不含被 tenant/document_acl/chunk_acl 丢弃的越权候选。
+	accessibleCount := len(cands)
 
 	if len(cands) == 0 {
 		endRun(db, runID, "succeeded")
@@ -159,8 +161,21 @@ func (e *Engine) Retrieve(db *gorm.DB, req RetrieveRequest) (RetrieveResult, err
 	vecScores := make([]float64, len(cands))
 	if emb, err := model.InvokeEmbed(db, model.EmbedRequest{Input: []string{rewritten}}, ictx); err == nil && len(emb.Vectors) == 1 {
 		qv := emb.Vectors[0]
+		dimMismatch := 0
 		for i := range cands {
+			// 有向量但维度与 query 不一致（换嵌入模型/provider fallback）→ cosine 恒为 0，
+			// 该候选的向量分静默失效。显式计数并落降级 step，避免「悄悄退化为纯 BM25」无迹可查。
+			if len(cands[i].embedding) > 0 && len(cands[i].embedding) != len(qv) {
+				dimMismatch++
+				continue
+			}
 			vecScores[i] = cosine(qv, cands[i].embedding)
+		}
+		if dimMismatch > 0 {
+			recordStep(db, req.User.TenantID, runID, "vector_dim_mismatch",
+				fmt.Sprintf("query 维度 %d", len(qv)),
+				fmt.Sprintf("%d/%d 候选向量维度不匹配，向量分降级（退化为 BM25）", dimMismatch, len(cands)),
+				map[string]any{"mismatched": dimMismatch, "total": len(cands), "queryDim": len(qv)})
 		}
 	}
 	for i := range cands {
@@ -201,7 +216,7 @@ func (e *Engine) Retrieve(db *gorm.DB, req RetrieveRequest) (RetrieveResult, err
 	recordStep(db, req.User.TenantID, runID, "source_compression", "", fmt.Sprintf("注入 %d 片段", len(cands)), nil)
 
 	res.Candidates = cands
-	res.TotalFound = rawCount
+	res.TotalFound = accessibleCount
 	res.KeyCount = len(cands)
 	endRun(db, runID, "succeeded")
 	return res, nil
