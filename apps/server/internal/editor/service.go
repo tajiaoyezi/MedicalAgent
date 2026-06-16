@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +40,42 @@ func NewService(cfg config.OnlyOffice, store *storage.Storage) *Service {
 }
 
 func (s *Service) Config() config.OnlyOffice { return s.cfg }
+
+// Forcesave 经 DS 命令服务触发强制保存（产生 status=6 forcesave 回调）。
+// 用途：写回意图 arm 之后触发，使保存回调走 ai_writeback 分支落版本（Api.Save 仅产生 status=2 user_edit，
+// 故插件侧不再 Api.Save，由本方法在已 arm 时统一触发 forcesave）。error=0 成功、error=4 文档无改动，其余失败。
+func (s *Service) Forcesave(docKey string) error {
+	body := map[string]any{"c": "forcesave", "key": docKey}
+	var token string
+	if s.JWT.Enabled() {
+		token = s.JWT.Sign(map[string]any{"c": "forcesave", "key": docKey})
+		body["token"] = token // JWT_IN_BODY
+	}
+	b, _ := json.Marshal(body)
+	endpoint := strings.TrimRight(s.cfg.DSURL, "/") + "/coauthoring/CommandService.ashx"
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token) // JWT_HEADER
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	var out struct {
+		Error int `json:"error"`
+	}
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	if out.Error != 0 && out.Error != 4 {
+		return fmt.Errorf("forcesave 命令失败: error=%d", out.Error)
+	}
+	return nil
+}
 
 type CallbackBody struct {
 	Key    string
