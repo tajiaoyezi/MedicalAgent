@@ -37,9 +37,11 @@ npm run smoke:authz          # c01 跨租户/越权加固（10 断言）
 npm run smoke:onlyoffice     # c02 JWT/编辑器配置/文件路由/DS healthcheck
 npm run smoke:editor-authz   # c02 写回意图状态机/DS URL 白名单/回调 JWT（15 断言）
 npm run smoke:c03            # c03 模型 fallback/脱敏门控/解析双链路（内置 mock 端口 4733，9 段 22 断言）
+npm run smoke:c04            # c04 AIMed 六模式/RAG 六维过滤/引用三态/高风险前置/最近任务（内置 mock 端口 4734）
+npm run smoke:c05            # c05 写回确认网关/risk_type 权威分类器/策略矩阵/门禁裁决/多态 subject 确认/doc_ai 最近任务（PG-only）
 ```
 
-> 密钥：`MODEL_CREDENTIAL_SECRET`、`ONLYOFFICE_JWT_SECRET`、`SESSION_SECRET` 生产必配（缺失即 panic），dev 用本地占位。迁移编号映射见 `apps/server/internal/db/MIGRATIONS.md`。schema 唯一来源是 6 个 `.sql`（gorm 不接管，无 AutoMigrate）。
+> 密钥：`MODEL_CREDENTIAL_SECRET`、`ONLYOFFICE_JWT_SECRET`、`SESSION_SECRET` 生产必配（缺失即 panic），dev 用本地占位。迁移编号映射见 `apps/server/internal/db/MIGRATIONS.md`。schema 唯一来源是 8 个 `.sql`（001–008，gorm 不接管，无 AutoMigrate）。
 
 ### 端到端（E2E，Playwright）
 

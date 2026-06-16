@@ -59,6 +59,7 @@ func New(d Deps) *gin.Engine {
 	routes.RegisterAdmin(r, d.DB)
 	routes.RegisterEditor(r, d.DB, d.Storage, editorSvc)
 	routes.RegisterBridge(r, d.DB, editorSvc)
+	routes.RegisterWriteback(r, d.DB, editorSvc) // c05 写回确认网关（AI 改文档唯一服务端收口）
 	routes.RegisterPreview(r, d.DB, d.Storage, d.Config.OnlyOffice)
 	routes.RegisterAdminModels(r, d.DB)
 

@@ -79,7 +79,7 @@ test.describe("编辑器与预览（管理员）", () => {
       page.locator("header").getByText("在线编辑", { exact: false }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "医疗 AI 面板" }),
+      page.getByRole("button", { name: "医疗空间" }),
     ).toBeVisible();
 
     await snapshot(page, "07-editor-host");
@@ -98,20 +98,19 @@ test.describe("编辑器与预览（管理员）", () => {
     ).toBeVisible({ timeout: 20_000 });
     await expect(page).toHaveURL(/\/editor\//);
 
-    // 打开右侧医疗 AI 面板（host 侧 React UI，独立于 DS 渲染）
-    const panelBtn = page.getByRole("button", { name: "医疗 AI 面板" });
+    // 经顶部「医疗空间」按钮打开右侧医疗 AI 面板（host 侧 React UI，独立于 DS 渲染）
+    const panelBtn = page.getByRole("button", { name: "医疗空间" });
     await expect(panelBtn).toBeVisible();
     await panelBtn.click();
 
-    // 面板标题与只读入口存在；不点击应用，避免触发高风险写回确认链路（医疗红线）。
-    // 注意：面板标题是 <strong>（非 heading），且「医疗 AI 面板」文本同时是工具栏开关按钮；
-    // 面板 aside 在 DOM 中后于工具栏按钮，故取 .last() 命中面板标题。
+    // 面板标题、§19.3 免责声明、docx P0 写回类入口（只读断言，不点击应用，避免触发写回确认链路）。
     await expect(page.getByText("医疗 AI 面板").last()).toBeVisible();
+    await expect(page.getByText(/免责声明/).first()).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "读取当前选区" }),
+      page.getByRole("button", { name: "全文润色" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /润色预览/ }),
+      page.getByRole("button", { name: "校对" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "关闭" })).toBeVisible();
 
