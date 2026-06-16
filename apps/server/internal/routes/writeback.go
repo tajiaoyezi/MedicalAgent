@@ -110,7 +110,6 @@ func RegisterWriteback(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 			ModifiedText     string `json:"modifiedText"`
 			ExpectedRevision string `json:"expectedRevision"`
 			ConfirmedScope   string `json:"confirmedScope"`
-			OutputVersionID  string `json:"outputVersionId"`
 		}
 		_ = c.ShouldBindJSON(&body)
 		if body.Action != "apply" && body.Action != "copy" && body.Action != "submit_review" {
@@ -152,11 +151,13 @@ func RegisterWriteback(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 			confirmedRole = writeback.ConfirmedRole(user)
 		}
 
+		// output_version_id 不取自客户端：确认时新版本尚未由 c02 保存回调生成，
+		// 待回调落 document_versions 后经 writeback.SetOutputVersion 异步回填（避免客户端注入跨租户/不存在的 version_id）。
 		confID, err := writeback.Record(db, writeback.RecordInput{
 			TenantID: user.TenantID, SubjectType: "document", SubjectID: doc.DocumentID,
 			ConfirmedBy: user.UserID, ConfirmedRole: confirmedRole, ConfirmedScope: body.ConfirmedScope,
 			RiskType: riskType, BeforeHash: writeback.ContentHash(body.OriginalText), AfterHash: writeback.ContentHash(body.ModifiedText),
-			Action: body.Action, OperationType: body.OperationType, OutputVersionID: body.OutputVersionID,
+			Action: body.Action, OperationType: body.OperationType,
 			ActorRole: strings.Join(user.RoleSlugs, ","), AuditAction: "writeback_confirm",
 			AuditMeta: map[string]any{"documentId": doc.DocumentID, "operationType": body.OperationType},
 		})
