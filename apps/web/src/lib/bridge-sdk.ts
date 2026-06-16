@@ -22,6 +22,11 @@ function isAllowedOrigin(origin: string): boolean {
   return false;
 }
 
+// 供宿主（EditorPage）在锁定桥命令目标 window 前校验插件就绪包来源，与 callPlugin 回包校验同一白名单。
+export function isBridgeOriginAllowed(origin: string): boolean {
+  return isAllowedOrigin(origin);
+}
+
 let seq = 0;
 
 function nextId() {
@@ -47,14 +52,17 @@ export class MedOfficeBridge {
   private bridgeToken: string;
   private revision: string;
   private iframe: Window | null = null;
+  private targetOrigin = "*";
 
   constructor(bridgeToken: string, revision: string) {
     this.bridgeToken = bridgeToken;
     this.revision = revision;
   }
 
-  setTarget(win: Window | null) {
+  setTarget(win: Window | null, origin?: string) {
     this.iframe = win;
+    // 命令投递收紧到目标插件 origin（不再广播 "*"），避免目标 window 变更时把写方法 params 投给非预期 frame。
+    if (origin && origin !== "null") this.targetOrigin = origin;
   }
 
   updateRevision(revision: string) {
@@ -144,7 +152,7 @@ export class MedOfficeBridge {
           params,
           revision: this.revision,
         },
-        "*",
+        this.targetOrigin,
       );
       setTimeout(() => {
         window.removeEventListener("message", handler);

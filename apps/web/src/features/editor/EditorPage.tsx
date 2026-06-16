@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import {
   createBridge,
+  isBridgeOriginAllowed,
   loadOnlyofficeApi,
   type MedOfficeBridge,
 } from "../../lib/bridge-sdk";
@@ -38,10 +39,12 @@ export default function EditorPage() {
 
     const onReady = (event: MessageEvent) => {
       if (event.data?.channel === "medoffice-bridge-ready") {
+        // 来源校验：只接受白名单 origin 的就绪包，避免任意 frame 冒充插件成为命令投递目标（防写回内容被动外泄）。
+        if (!isBridgeOriginAllowed(event.origin)) return;
         // 关键修复：目标须是**插件 window**（嵌套 sandbox iframe，宿主无法 querySelector），
         // 取就绪包的 event.source（即插件 window）作为命令投递目标；DS 编辑器 iframe 不是插件、投不进。
         if (event.source) {
-          bridgeRef.current?.setTarget(event.source as Window);
+          bridgeRef.current?.setTarget(event.source as Window, event.origin);
           if (import.meta.env.DEV) {
             (window as unknown as { __medbridgeReady?: boolean }).__medbridgeReady = true;
           }

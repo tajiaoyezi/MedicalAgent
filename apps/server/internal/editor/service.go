@@ -45,10 +45,11 @@ func (s *Service) Config() config.OnlyOffice { return s.cfg }
 // 用途：写回意图 arm 之后触发，使保存回调走 ai_writeback 分支落版本（Api.Save 仅产生 status=2 user_edit，
 // 故插件侧不再 Api.Save，由本方法在已 arm 时统一触发 forcesave）。error=0 成功、error=4 文档无改动，其余失败。
 func (s *Service) Forcesave(docKey string) error {
-	payload := map[string]any{"c": "forcesave", "key": docKey}
 	body := map[string]any{"c": "forcesave", "key": docKey}
+	var token string
 	if s.JWT.Enabled() {
-		body["token"] = s.JWT.Sign(payload)
+		token = s.JWT.Sign(map[string]any{"c": "forcesave", "key": docKey})
+		body["token"] = token // JWT_IN_BODY
 	}
 	b, _ := json.Marshal(body)
 	endpoint := strings.TrimRight(s.cfg.DSURL, "/") + "/coauthoring/CommandService.ashx"
@@ -57,8 +58,8 @@ func (s *Service) Forcesave(docKey string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if s.JWT.Enabled() {
-		req.Header.Set("Authorization", "Bearer "+s.JWT.Sign(payload))
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token) // JWT_HEADER
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	res, err := client.Do(req)

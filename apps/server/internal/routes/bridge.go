@@ -138,7 +138,8 @@ func RegisterBridge(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 		}
 		svc.Sessions.Touch(session)
 		// arm 后触发 DS 强制保存（status=6 forcesave 回调）→ 保存回调走 ai_writeback 分支落版本。
-		// 插件侧不再 Api.Save（仅 status=2 user_edit），改由此处统一触发；best-effort，失败仅记审计不阻断。
+		// 插件侧不再 Api.Save（仅 status=2 user_edit），改由此处统一触发。
+		// forcesave 真实失败（非「无改动」error=4）时回 502 让前端可感知并重试——避免「确认成功但版本未落」的静默失败（医疗写回可观测性）。
 		_, _, docKey := svc.Sessions.Snapshot(session)
 		if err := svc.Forcesave(docKey); err != nil {
 			_ = audit.Write(db, audit.Entry{
@@ -146,8 +147,10 @@ func RegisterBridge(r *gin.Engine, db *gorm.DB, svc *editor.Service) {
 				ActionType: "editor_forcesave", TargetType: audit.P("document"), TargetID: audit.P(session.DocumentID),
 				Result: "失败", FailureReason: audit.P(err.Error()),
 			})
+			c.JSON(http.StatusBadGateway, gin.H{"armed": true, "forcesaveOk": false, "error": "写回保存触发失败，请重试"})
+			return
 		}
-		c.JSON(http.StatusOK, gin.H{"armed": true})
+		c.JSON(http.StatusOK, gin.H{"armed": true, "forcesaveOk": true})
 	})
 
 	r.POST("/api/bridge/confirm-preview", func(c *gin.Context) {
