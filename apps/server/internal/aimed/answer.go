@@ -220,11 +220,11 @@ var markerRe = regexp.MustCompile(`\[(\d+)\]`)
 
 // sanitizeMarkers 移除模型 prose 中超出有效引用序号 [1..max] 的悬空/越界角标，
 // 防止前端把无对应 citation 的 [n] 渲染成可点击角标（marker→citation 方向校验，确定性「关键结论」段不受影响）。
-// 有效范围内的角标（含重复）保留——同一来源可被多次引用。max<=0 时移除全部角标。
-func sanitizeMarkers(prose string, max int) string {
+// 有效范围内的角标（含重复）保留——同一来源可被多次引用。maxRef<=0 时移除全部角标。
+func sanitizeMarkers(prose string, maxRef int) string {
 	return markerRe.ReplaceAllStringFunc(prose, func(m string) string {
 		n, _ := strconv.Atoi(m[1 : len(m)-1])
-		if n >= 1 && n <= max {
+		if n >= 1 && n <= maxRef {
 			return m
 		}
 		return ""
