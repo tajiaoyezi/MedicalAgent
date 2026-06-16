@@ -5,6 +5,7 @@ import (
 
 	"medoffice/server/internal/audit"
 	"medoffice/server/internal/auth"
+	"medoffice/server/internal/chunkacl"
 	"medoffice/server/internal/docperm"
 )
 
@@ -29,6 +30,11 @@ func Locate(db *gorm.DB, user auth.AuthUser, citationID string) (LocateResult, e
 	if err != nil {
 		return LocateResult{}, err
 	}
+	return LocateLoaded(db, user, c)
+}
+
+// LocateLoaded 对已取出的引用定位（c==nil 视为已删除）。供路由层先做归属校验后复用，避免二次查库。
+func LocateLoaded(db *gorm.DB, user auth.AuthUser, c *Citation) (LocateResult, error) {
 	if c == nil {
 		return LocateResult{OK: false, Message: MsgDeleted}, nil
 	}
@@ -53,7 +59,7 @@ func Locate(db *gorm.DB, user auth.AuthUser, citationID string) (LocateResult, e
 	}
 	_ = audit.Write(db, audit.Entry{
 		TenantID: user.TenantID, ActorID: audit.P(user.UserID), ActorRole: audit.P(joinRoles(user)),
-		ActionType: "citation_click", TargetType: audit.P("citation"), TargetID: audit.P(citationID),
+		ActionType: "citation_click", TargetType: audit.P("citation"), TargetID: audit.P(c.CitationID),
 		Result:   result,
 		Metadata: map[string]any{"sourceType": c.SourceType, "action": res.Action, "documentId": c.DocumentID, "pubmedId": c.PubmedID, "outcome": res.Message},
 	})
@@ -76,6 +82,14 @@ func locateDocument(db *gorm.DB, user auth.AuthUser, c *Citation) LocateResult {
 	lvl, _ := docperm.Resolve(db, user, doc)
 	if lvl == docperm.None {
 		return LocateResult{OK: false, Message: MsgUnavailable} // 权限不足，不暴露内容
+	}
+	// chunk 级 ACL 复核（owner=c03，定位侧与 rag 检索侧共用 chunkacl，避免「检索拦、定位放」越权缺口）：
+	// chunk_acl 可严于文档级，命中拒绝即降级，不返回 chunkId/page/section 定位锚点。
+	if c.ChunkID != "" {
+		acl, _ := chunkacl.Load(db, user.TenantID, c.ChunkID)
+		if !chunkacl.Allows(acl, user) {
+			return LocateResult{OK: false, Message: MsgUnavailable}
+		}
 	}
 	// chunk 精确定位：有页码/段落则定位，否则降级到文档
 	if c.Page == nil && c.ParagraphIndex == nil && c.ChunkID == "" {

@@ -199,10 +199,11 @@ func ListMessages(db *gorm.DB, tenantID, convID string) ([]Message, error) {
 	return rows, err
 }
 
-// GetMessage 取单条消息（租户隔离）。
-func GetMessage(db *gorm.DB, tenantID, messageID string) (*Message, error) {
+// GetMessage 取单条消息（租户 + 用户隔离）。messages 是 per-user 资源（user_id NOT NULL），
+// 仅按 tenant 取会让同租户他人消息可被反馈/读引用/落地，故与会话访问器一致强制 user_id。
+func GetMessage(db *gorm.DB, tenantID, userID, messageID string) (*Message, error) {
 	var m Message
-	err := db.Raw(`SELECT `+msgCols+` FROM messages WHERE message_id = ? AND tenant_id = ? AND deleted_at IS NULL`, messageID, tenantID).Scan(&m).Error
+	err := db.Raw(`SELECT `+msgCols+` FROM messages WHERE message_id = ? AND tenant_id = ? AND user_id = ? AND deleted_at IS NULL`, messageID, tenantID, userID).Scan(&m).Error
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	"medoffice/server/internal/auth"
+	"medoffice/server/internal/chunkacl"
 	"medoffice/server/internal/docperm"
 )
 
@@ -43,57 +44,11 @@ func filterPermissions(db *gorm.DB, user auth.AuthUser, cands []Candidate) (kept
 			continue
 		}
 		// chunk_acl 维（chunk 级，可严于文档级）
-		if !chunkACLAllows(c.chunkACL, user) {
+		if !chunkacl.Allows(c.chunkACL, user) {
 			dropped++
 			continue
 		}
 		kept = append(kept, c)
 	}
 	return kept, dropped
-}
-
-// chunkACLAllows 解释 chunk_acl 物理列（owner=c03，本 phase 仅消费）：
-//   - {} 或缺省 → 继承文档级（放行）
-//   - {"deny_users":[...]} 命中当前用户 → 拒绝
-//   - {"allow_users":[...]} 非空且不含当前用户 → 拒绝（严于文档级）
-//   - {"allow_roles":[...]} 非空且与用户角色无交集 → 拒绝
-func chunkACLAllows(acl map[string]any, user auth.AuthUser) bool {
-	if len(acl) == 0 {
-		return true
-	}
-	if deny, ok := acl["deny_users"].([]any); ok {
-		for _, v := range deny {
-			if s, _ := v.(string); s == user.UserID {
-				return false
-			}
-		}
-	}
-	if allow, ok := acl["allow_users"].([]any); ok && len(allow) > 0 {
-		found := false
-		for _, v := range allow {
-			if s, _ := v.(string); s == user.UserID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	if allowRoles, ok := acl["allow_roles"].([]any); ok && len(allowRoles) > 0 {
-		found := false
-		for _, v := range allowRoles {
-			s, _ := v.(string)
-			for _, rs := range user.RoleSlugs {
-				if rs == s {
-					found = true
-					break
-				}
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
 }

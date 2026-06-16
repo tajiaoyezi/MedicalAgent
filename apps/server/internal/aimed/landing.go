@@ -40,7 +40,7 @@ type LandingResult struct {
 // GenerateWord 生成在线 Word：渲染答案为 docx 内容 → 经 c01 文档中心创建契约落库 → 产 upload_success → 返回打开信号。
 // 本能力不依赖 c02 createNewDocument 服务端新建变体，亦不直接产生 document_events（复用 c01 创建入口）。
 func (s *Service) GenerateWord(db *gorm.DB, store *storage.Storage, user auth.AuthUser, conv *Conversation, messageID string) (LandingResult, error) {
-	msg, err := GetMessage(db, conv.TenantID, messageID)
+	msg, err := GetMessage(db, conv.TenantID, conv.UserID, messageID)
 	if err != nil {
 		return LandingResult{}, err
 	}
@@ -94,7 +94,7 @@ func (s *Service) renderScope(db *gorm.DB, conv *Conversation, scope, currentMes
 		if currentMessageID == "" {
 			return "", fmt.Errorf("缺少 messageId")
 		}
-		m, err := GetMessage(db, conv.TenantID, currentMessageID)
+		m, err := GetMessage(db, conv.TenantID, conv.UserID, currentMessageID)
 		if err != nil {
 			return "", err
 		}
@@ -161,6 +161,8 @@ func createOnlineDocument(db *gorm.DB, store *storage.Storage, user auth.AuthUse
 		})
 	})
 	if err != nil {
+		// 事务回滚后补偿删除已写入对象，避免 MinIO 孤儿对象（与 editor 写回同一口径）
+		_ = store.Delete(context.Background(), objectKey)
 		return "", "", err
 	}
 	return documentID, versionID, nil

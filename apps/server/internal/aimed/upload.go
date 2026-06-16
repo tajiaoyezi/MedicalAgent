@@ -118,6 +118,8 @@ func IngestFile(db *gorm.DB, store *storage.Storage, user auth.AuthUser, filenam
 		})
 	})
 	if err != nil {
+		// 事务回滚后补偿删除已写入对象，避免 MinIO 孤儿对象（与 editor 写回同一口径）
+		_ = store.Delete(context.Background(), objectKey)
 		return UploadedFile{}, err
 	}
 

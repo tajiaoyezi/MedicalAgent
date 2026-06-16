@@ -252,9 +252,13 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 		c.JSON(http.StatusOK, res)
 	})
 
-	// 取消息引用
+	// 取消息引用（先校验 message 归当前用户所有，避免同租户跨用户读他人引用元数据）
 	g.GET("/messages/:id/citations", func(c *gin.Context) {
 		u := auth.CurrentUser(c)
+		if _, err := aimed.GetMessage(db, u.TenantID, u.UserID, c.Param("id")); err != nil {
+			httpx.Fail(c, 404, "消息不存在")
+			return
+		}
 		cites, err := citation.ListByMessage(db, u.TenantID, c.Param("id"))
 		if err != nil {
 			httpx.Fail(c, 500, "服务器错误")
@@ -263,11 +267,21 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 		c.JSON(http.StatusOK, gin.H{"citations": cites})
 	})
 
-	// 点击引用定位
+	// 点击引用定位（先取引用再校验其所属 message 归当前用户；非本人/不存在统一降级为「已删除」，不泄露存在性）
 	g.POST("/citations/:id/locate", func(c *gin.Context) {
 		u := auth.CurrentUser(c)
-		res, err := citation.Locate(db, u, c.Param("id"))
+		cit, err := citation.Get(db, u.TenantID, c.Param("id"))
 		if err != nil {
+			httpx.Fail(c, 500, "服务器错误")
+			return
+		}
+		if cit != nil {
+			if _, merr := aimed.GetMessage(db, u.TenantID, u.UserID, cit.MessageID); merr != nil {
+				cit = nil // 存在但非本人 → 视同不存在，避免泄露
+			}
+		}
+		res, lerr := citation.LocateLoaded(db, u, cit)
+		if lerr != nil {
 			httpx.Fail(c, 500, "服务器错误")
 			return
 		}
@@ -292,7 +306,7 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 			httpx.Fail(c, 400, "无效的反馈原因")
 			return
 		}
-		if _, err := aimed.GetMessage(db, u.TenantID, msgID); err != nil {
+		if _, err := aimed.GetMessage(db, u.TenantID, u.UserID, msgID); err != nil {
 			httpx.Fail(c, 404, "消息不存在")
 			return
 		}
@@ -321,7 +335,7 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 	// 重新生成（保留旧版本：旧消息不删，新答案以 parent 链追加）
 	g.POST("/messages/:id/regenerate", func(c *gin.Context) {
 		u := auth.CurrentUser(c)
-		old, err := aimed.GetMessage(db, u.TenantID, c.Param("id"))
+		old, err := aimed.GetMessage(db, u.TenantID, u.UserID, c.Param("id"))
 		if err != nil {
 			httpx.Fail(c, 404, "消息不存在")
 			return
@@ -331,14 +345,18 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 			failConv(c, cerr)
 			return
 		}
-		// 以该答案的用户输入重新生成（取 parent=用户消息的内容）
+		// 以该答案的原始用户输入重新生成。复用原 user 消息为新答案的 parent：
+		// 同一提问的多个答案版本挂在同一 parent 下（§8 重新生成版本链），不再重复插入一条 user 消息。
 		query := old.Content
+		req := aimed.AnswerRequest{User: u, Conversation: conv, Query: query}
 		if old.ParentMessageID != nil {
-			if um, e := aimed.GetMessage(db, u.TenantID, *old.ParentMessageID); e == nil {
+			if um, e := aimed.GetMessage(db, u.TenantID, u.UserID, *old.ParentMessageID); e == nil {
 				query = um.Content
+				req.Query = query
+				req.ExistingUserMessageID = *old.ParentMessageID
 			}
 		}
-		res, aerr := svc.Answer(db, aimed.AnswerRequest{User: u, Conversation: conv, Query: query})
+		res, aerr := svc.Answer(db, req)
 		if aerr != nil {
 			httpx.Fail(c, 500, "服务器错误")
 			return
@@ -349,7 +367,7 @@ func RegisterAIMed(r *gin.Engine, db *gorm.DB, store *storage.Storage, svc *aime
 	// 生成在线 Word
 	g.POST("/messages/:id/generate-word", func(c *gin.Context) {
 		u := auth.CurrentUser(c)
-		msg, err := aimed.GetMessage(db, u.TenantID, c.Param("id"))
+		msg, err := aimed.GetMessage(db, u.TenantID, u.UserID, c.Param("id"))
 		if err != nil {
 			httpx.Fail(c, 404, "消息不存在")
 			return

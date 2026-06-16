@@ -37,6 +37,9 @@ type AnswerRequest struct {
 	Conversation *Conversation
 	Query        string
 	CurrentDocID string
+	// ExistingUserMessageID 非空时复用该 user 消息为新答案的 parent（重新生成场景），
+	// 不再新插一条重复的 user 消息——保证同一提问的多个答案版本共享同一 parent（版本链）。
+	ExistingUserMessageID string
 }
 
 // AnswerStats 检索统计（§5.2 找到 N 篇、M 篇重点参考、思考 S 秒）。
@@ -74,9 +77,13 @@ func (s *Service) Answer(db *gorm.DB, req AnswerRequest) (AnswerResult, error) {
 		mode = string(ModeGeneral)
 	}
 
-	userMsgID, err := AddMessage(db, conv.TenantID, conv.UserID, conv.ConversationID, "user", req.Query, mode, nil, nil)
-	if err != nil {
-		return AnswerResult{}, err
+	userMsgID := req.ExistingUserMessageID
+	if userMsgID == "" {
+		var err error
+		userMsgID, err = AddMessage(db, conv.TenantID, conv.UserID, conv.ConversationID, "user", req.Query, mode, nil, nil)
+		if err != nil {
+			return AnswerResult{}, err
+		}
 	}
 	res := AnswerResult{UserMessageID: userMsgID, Process: ProcessSteps, Draft: true, DraftLabel: DraftLabel, Disclaimer: DisclaimerText}
 
