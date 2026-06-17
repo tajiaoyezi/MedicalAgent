@@ -1,25 +1,25 @@
 ## 1. 数据模型与迁移（c06 新建 §18 命名的 knowledge_bases/kb_documents 基表）
 
-- [ ] 1.1 **新建 `knowledge_bases` 基表**（PRD §18 命名，c01/c02/c03 均未建，c06 为唯一建表 owner）：字段含 `kb_id`（主键）、`tenant_id`、`name`、`description`、`created_by`、`is_seed`、`is_pinned`、`manual_weight`（可空）、`data_source`、`member_count`、`document_count`、`created_at`、`updated_at`，编写正向/可回滚迁移，验证：迁移可正向执行、knowledge_bases 表创建成功且 13 字段齐备、不与 c01/c03/c04 所建表重名冲突（对应 §18、D8、§24.3「13 个知识库卡片」）。
-- [ ] 1.2 **新建 `kb_documents` 基表**（PRD §18 命名，c06 为唯一建表 owner）：含 §11.5.1 导入 10 必录字段（来源 URL/文件来源、来源类型、导入人、导入时间、版权·授权状态、版本、解析状态、索引状态、`whitelist_rule_id`、`authorized_by`），并加 `tenant_id`/`kb_id` 外键与 `document_id`（关联 c01 documents），验证：建表后 10 必录字段齐备可写入、tenant_id/kb_id 外键约束生效（对应 §18、D8、「入库资料必录元数据字段」Requirement）。
-- [ ] 1.3 新增最小「来源白名单」配置结构（域名/来源标识 → `whitelist_rule_id`、是否允许、授权说明、作用域），并被 `kb_documents.whitelist_rule_id` 引用，验证：可配置一条白名单规则并被导入记录引用（对应 D4、「受控公网导入来源」）。
-- [ ] 1.4 消费/写入由其它 owner 所建表：`document_chunks`/`embeddings`（c03 所建表，c06 仅向 c03 所建的 `chunk_acl` 列写入 chunk 级 ACL 覆盖值与 §16.3 元数据列、不改结构）、`citations`（c04 所建表，c06 写入/读取引用，不建表）、`conversations`/`messages`（c04 所建表，c06 通过 c04 的 module/source 维写入知识库问答会话、`module=kb_qa`/`source=「医疗知识库问答」`、不建表）、`document_permissions`/`audit_logs`/`recent_tasks`（c01 所建表，c06 仅写入符合 owner 契约的记录、不建表）、`privacy_detection_rules`/`privacy_redaction_events`（c09 所建表，c06 仅消费其脱敏判定接缝），仅校验本 phase 写入所需字段存在，验证：`chunk_acl` 列名与 c03/c04 一致（不出现「单一 acl」与「chunk_acl」并存指同一列）、契约字段对齐 §16.3、不重复建他人 owner 的表（对应 D8、Decision A、Decision B、Risks「依赖 c03/c04 接口」）。
+- [x] 1.1 **新建 `knowledge_bases` 基表**（PRD §18 命名，c01/c02/c03 均未建，c06 为唯一建表 owner）：字段含 `kb_id`（主键）、`tenant_id`、`name`、`description`、`created_by`、`is_seed`、`is_pinned`、`manual_weight`（可空）、`data_source`、`member_count`、`document_count`、`created_at`、`updated_at`，编写正向/可回滚迁移，验证：迁移可正向执行、knowledge_bases 表创建成功且 13 字段齐备、不与 c01/c03/c04 所建表重名冲突（对应 §18、D8、§24.3「13 个知识库卡片」）。
+- [x] 1.2 **新建 `kb_documents` 基表**（PRD §18 命名，c06 为唯一建表 owner）：含 §11.5.1 导入 10 必录字段（来源 URL/文件来源、来源类型、导入人、导入时间、版权·授权状态、版本、解析状态、索引状态、`whitelist_rule_id`、`authorized_by`），并加 `tenant_id`/`kb_id` 外键与 `document_id`（关联 c01 documents），验证：建表后 10 必录字段齐备可写入、tenant_id/kb_id 外键约束生效（对应 §18、D8、「入库资料必录元数据字段」Requirement）。
+- [x] 1.3 新增最小「来源白名单」配置结构（域名/来源标识 → `whitelist_rule_id`、是否允许、授权说明、作用域），并被 `kb_documents.whitelist_rule_id` 引用，验证：可配置一条白名单规则并被导入记录引用（对应 D4、「受控公网导入来源」）。
+- [x] 1.4 消费/写入由其它 owner 所建表：`document_chunks`/`embeddings`（c03 所建表，c06 仅向 c03 所建的 `chunk_acl` 列写入 chunk 级 ACL 覆盖值与 §16.3 元数据列、不改结构）、`citations`（c04 所建表，c06 写入/读取引用，不建表）、`conversations`/`messages`（c04 所建表，c06 通过 c04 的 module/source 维写入知识库问答会话、`module=kb_qa`/`source=「医疗知识库问答」`、不建表）、`document_permissions`/`audit_logs`/`recent_tasks`（c01 所建表，c06 仅写入符合 owner 契约的记录、不建表）、`privacy_detection_rules`/`privacy_redaction_events`（c09 所建表，c06 仅消费其脱敏判定接缝），仅校验本 phase 写入所需字段存在，验证：`chunk_acl` 列名与 c03/c04 一致（不出现「单一 acl」与「chunk_acl」并存指同一列）、契约字段对齐 §16.3、不重复建他人 owner 的表（对应 D8、Decision A、Decision B、Risks「依赖 c03/c04 接口」）。
 
 ## 2. 预置 13 个医疗知识库（种子）
 
-- [ ] 2.1 编写版本化 seed 配置文件，写入 §11.2 的 13 个 `is_seed=true` 知识库（含名称、用途简介、`data_source` 标签），不在代码中硬编码清单字符串，验证：13 库名称与简介逐项对照 §11.2 表格一致（对应 §24.3「13 个默认知识库清单符合 PRD」、D1）。
-- [ ] 2.2 执行 seed 后校验首页恰好展示 13 个预置库卡片，验证：首页返回库数 = 13 且名称依次匹配 §11.2（对应 §24.3「展示 13 个知识库卡片」、「默认展示 13 个知识库卡片」Scenario）。
+- [x] 2.1 编写版本化 seed 配置文件，写入 §11.2 的 13 个 `is_seed=true` 知识库（含名称、用途简介、`data_source` 标签），不在代码中硬编码清单字符串，验证：13 库名称与简介逐项对照 §11.2 表格一致（对应 §24.3「13 个默认知识库清单符合 PRD」、D1）。
+- [x] 2.2 执行 seed 后校验首页恰好展示 13 个预置库卡片，验证：首页返回库数 = 13 且名称依次匹配 §11.2（对应 §24.3「展示 13 个知识库卡片」、「默认展示 13 个知识库卡片」Scenario）。
 - [ ] 2.3 为每个预置库通过第 4 组导入管线导入至少 1 份授权/开放来源的演示文档（演示资料库），空库保留导入管线就绪。**c06 为这批知识库演示文档的唯一资产装载 owner**：每库 ≥1 份演示文档经本 phase D3/D4 导入管线装载并标 `authorized`，c09（§20.4 内置 Demo 数据集/验收测试集）仅引用本批已装载文档纳入验收清单、不重复装载（与 200 模板由 c08 装载、c09 引用同款消歧）。验证：13 库每库 ≥1 份可被检索问答的演示文档且演示资料经授权状态机标 `authorized`、c09 不另行重复导入（对应「每个默认库含演示资料」Scenario、Risks「演示库资料版权」、F16）。
 - [ ] 2.4 验证预置空库仍提供上传/导入/检索/问答/溯源/权限过滤入口，验证：打开无正式资料的预置库时上述能力不被禁用（对应「预置空库仍具备完整能力」Scenario）。
 
 ## 3. 知识库首页卡片与排序
 
-- [ ] 3.1 实现卡片 9 字段查询输出（名称/ID/创建人/简介/成员人数/文档数量/更新时间/数据源/置顶状态），验证：单库卡片同时返回全部 9 字段（对应「卡片展示全部规定字段」Scenario）。
+- [x] 3.1 实现卡片 9 字段查询输出（名称/ID/创建人/简介/成员人数/文档数量/更新时间/数据源/置顶状态），验证：单库卡片同时返回全部 9 字段（对应「卡片展示全部规定字段」Scenario）。
 - [ ] 3.2 实现 `document_count`（按 `index_status=indexed` 且当前 `tenant_id` 可见范围计数）与 `member_count`（数据源 = 该知识库 ACL/`document_permissions` 授权用户去重计数，不依赖独立 `kb_members` 表）物化计数，`document_count` 的刷新以 c06 消费 c03「索引就绪」事件（见 5.4a，置 `index_status=indexed`）为唯一触发源、随该事件与成员（知识库授权）变更事务内增量更新，验证：收到「索引就绪」事件后卡片文档数量自增、`member_count` 等于该库授权用户去重数、不实时全表聚合（对应「文档数量按可见范围计数」「成员人数取知识库授权用户去重计数」「入库或更新后刷新更新时间」Scenario、D2、Decision E）。
 - [ ] 3.3 实现卡片更新时间在新增/更新/删除文档完成后同步刷新，验证：完成一次入库后该库 `updated_at` 与文档数量同步刷新（对应「入库或更新后刷新更新时间」Scenario）。
-- [ ] 3.4 在 SQL 层实现确定性多级排序 `is_pinned DESC, manual_weight DESC NULLS LAST, updated_at DESC, created_at DESC`，验证：置顶库最前、非置顶按权重降序、同权重按更新时间倒序、无配置回退创建时间倒序四级规则与分页稳定（对应 §24.3「配置排序权重和置顶」、§11.3 四个排序 Scenario、D2）。
-- [ ] 3.5 实现管理员配置「置顶/手动权重」入口（仅平台管理员或对应库管理员），验证：变更置顶或权重后列表顺序即时重算（对应 §24.3「管理员可配置排序权重和置顶」、「置顶库排在最前」Scenario、§11.5）。
-- [ ] 3.6 实现「创建知识库」入口（§11.5/§17.3，RBAC 管控，普通用户隐藏不可调用）：授权判定 MUST 以「持有 c01 `permissions` 表登记的租户级 `kb:create` 权限点」为唯一授权谓词（`kb:create` 由 c01 auth-rbac 唯一定义、默认授予 `admin`，c06 仅引用不自造），MUST NOT 以待创建（尚不存在）库对象上的 per-kb 管理级 ACL 表达创建授权；创建后在 `knowledge_bases` 落一条带 `tenant_id`/`name`/`created_by` 的空库并即时入列表，验证：持 `kb:create` 用户（默认 `admin`）创建空库成功且即时可见、不持 `kb:create` 的普通用户无创建入口且接口调用被拒、创建授权按租户级 `kb:create` 而非 per-kb ACL 判定（对应「持有 kb:create 权限点的用户创建空知识库」「创建授权按租户级 kb:create 权限点而非 per-kb ACL 判定」「无 kb:create 权限点的用户无创建知识库入口」Scenario、§11.5/§17.3、F14、Decision E）。
+- [x] 3.4 在 SQL 层实现确定性多级排序 `is_pinned DESC, manual_weight DESC NULLS LAST, updated_at DESC, created_at DESC`，验证：置顶库最前、非置顶按权重降序、同权重按更新时间倒序、无配置回退创建时间倒序四级规则与分页稳定（对应 §24.3「配置排序权重和置顶」、§11.3 四个排序 Scenario、D2）。
+- [x] 3.5 实现管理员配置「置顶/手动权重」入口（仅平台管理员或对应库管理员），验证：变更置顶或权重后列表顺序即时重算（对应 §24.3「管理员可配置排序权重和置顶」、「置顶库排在最前」Scenario、§11.5）。
+- [x] 3.6 实现「创建知识库」入口（§11.5/§17.3，RBAC 管控，普通用户隐藏不可调用）：授权判定 MUST 以「持有 c01 `permissions` 表登记的租户级 `kb:create` 权限点」为唯一授权谓词（`kb:create` 由 c01 auth-rbac 唯一定义、默认授予 `admin`，c06 仅引用不自造），MUST NOT 以待创建（尚不存在）库对象上的 per-kb 管理级 ACL 表达创建授权；创建后在 `knowledge_bases` 落一条带 `tenant_id`/`name`/`created_by` 的空库并即时入列表，验证：持 `kb:create` 用户（默认 `admin`）创建空库成功且即时可见、不持 `kb:create` 的普通用户无创建入口且接口调用被拒、创建授权按租户级 `kb:create` 而非 per-kb ACL 判定（对应「持有 kb:create 权限点的用户创建空知识库」「创建授权按租户级 kb:create 权限点而非 per-kb ACL 判定」「无 kb:create 权限点的用户无创建知识库入口」Scenario、§11.5/§17.3、F14、Decision E）。
 
 ## 4. 受控导入管线（四段式 + 授权状态机）
 

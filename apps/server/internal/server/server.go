@@ -56,6 +56,7 @@ func New(d Deps) *gin.Engine {
 	routes.RegisterPortal(r, d.DB)
 	routes.RegisterDocuments(r, d.DB, d.Storage)
 	routes.RegisterRecentTasks(r, d.DB)
+	routes.RegisterKnowledge(r, d.DB) // c06 知识库管理（首页卡片/排序/创建/置顶·权重）
 	routes.RegisterAdmin(r, d.DB)
 	routes.RegisterEditor(r, d.DB, d.Storage, editorSvc)
 	routes.RegisterBridge(r, d.DB, editorSvc)

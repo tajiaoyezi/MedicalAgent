@@ -28,5 +28,10 @@ func main() {
 	} else if err := db.Seed(ctx, conn); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
+	// 13 个预置知识库（§11.2）：平台级种子，幂等补齐每个租户（与演示账号 seed 分离，
+	// 既有库也能补上 13 库；生产同样需要预置库，故不受 NodeEnv 跳过约束）。
+	if err := db.SeedKnowledgeBases(ctx, conn); err != nil {
+		log.Fatalf("seed knowledge bases: %v", err)
+	}
 	log.Println("migrate done")
 }
