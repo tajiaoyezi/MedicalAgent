@@ -230,6 +230,18 @@ func main() {
 	okAssert(s5 == knowledge.AuthAuthorized && by5 != nil && *by5 != "", "未命中白名单但管理员显式授权 → authorized 且写 authorized_by")
 	_, errRej := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://www.cnki.net/article/x", Title: "商业库"})
 	okAssert(errRej == knowledge.ErrRejectedSource, "未授权商业库/镜像站 → rejected 红线阻断（不落 staging）")
+	// 安全加固：白名单按规范化主机名精确/子域匹配，堵无锚点子串旁路。
+	dConfuse, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://evil-c06-smoke-allow.example.org/x", Title: "混淆前缀"})
+	sc, _, _ := authStatusOf(dConfuse)
+	okAssert(sc == knowledge.AuthPreviewOnly, "混淆前缀 evil-<白名单域> 不命中白名单（无锚点子串旁路已堵）→ preview_only")
+	dEvilSuffix, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://c06-smoke-allow.example.org.attacker.net/x", Title: "尾部拼接"})
+	se, _, _ := authStatusOf(dEvilSuffix)
+	okAssert(se == knowledge.AuthPreviewOnly, "尾部拼接 <白名单域>.attacker.net 不命中 → preview_only")
+	dSub, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://docs.c06-smoke-allow.example.org/x", Title: "合法子域"})
+	ssv, subRule, _ := authStatusOf(dSub)
+	okAssert(ssv == knowledge.AuthAuthorized && subRule != nil, "白名单域真实子域 docs.<白名单域> → authorized")
+	_, errMirror := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://mirror.cnki.net/x", Title: "镜像子域"})
+	okAssert(errMirror == knowledge.ErrRejectedSource, "商业库镜像子域 mirror.cnki.net → rejected（子域红线）")
 
 	// ---- [9] 上传入口权限分级（CanUploadToKB）----
 	fmt.Println("\n[9] 上传入口权限分级")

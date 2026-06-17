@@ -63,21 +63,35 @@ type ImportRequest struct {
 	PublicNetwork bool
 }
 
-// hostOf 取 URL host（小写）。
+// hostOf 解析 URL 取规范化主机名（小写、去端口、去尾点）。仅接受 http/https；非法 URL/非 http(s)/无 host → ""。
+// MUST NOT 回退用原始串当 host（否则授权匹配被旁路放宽）。
 func hostOf(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return ""
 	}
-	return strings.ToLower(u.Host)
+	return strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 }
 
-// whitelistHit 查 source_whitelist_rules 是否命中（平台级 tenant_id IS NULL 或本租户），返回 (规则ID, 命中)。
+// isCommercialBlocked 红线黑名单匹配：规范化主机名精确等于或为黑名单域的子域（host 以 ".bad" 结尾），
+// 使镜像子域（如 mirror.cnki.net）同样被红线阻断。
+func isCommercialBlocked(host string) bool {
+	if host == "" {
+		return false
+	}
+	for bad := range commercialBlocklist {
+		if host == bad || strings.HasSuffix(host, "."+bad) {
+			return true
+		}
+	}
+	return false
+}
+
+// whitelistHit 按规范化主机名「精确等于 或 为白名单域子域（host 以 .identifier 结尾）」命中白名单规则，
+// 返回 (规则ID, 命中)。MUST NOT 用无锚点子串匹配（避免 evil-<id>.example.org / <id>.attacker.com 旁路放行）；
+// URL 解析失败不回退原始串。source_identifier 为管理员配置的主机名（可信、不含 LIKE 通配符）。
 func whitelistHit(db *gorm.DB, tenantID, sourceURL string) (string, bool) {
 	host := hostOf(sourceURL)
-	if host == "" {
-		host = strings.ToLower(strings.TrimSpace(sourceURL))
-	}
 	if host == "" {
 		return "", false
 	}
@@ -86,8 +100,9 @@ func whitelistHit(db *gorm.DB, tenantID, sourceURL string) (string, bool) {
 	}
 	_ = db.Raw(
 		`SELECT whitelist_rule_id FROM source_whitelist_rules
-		 WHERE is_allowed = TRUE AND (tenant_id IS NULL OR tenant_id = ?) AND ? LIKE '%' || source_identifier || '%'
-		 LIMIT 1`, tenantID, host,
+		 WHERE is_allowed = TRUE AND (tenant_id IS NULL OR tenant_id = ?)
+		   AND (LOWER(?) = LOWER(source_identifier) OR LOWER(?) LIKE '%.' || LOWER(source_identifier))
+		 LIMIT 1`, tenantID, host, host,
 	).Scan(&rows)
 	if len(rows) > 0 {
 		return rows[0].ID, true
@@ -114,8 +129,8 @@ func classifyAuthorization(db *gorm.DB, tenantID string, req ImportRequest) (str
 		return AuthAuthorized, ""
 	case SrcURL, SrcWhitelist:
 		host := hostOf(req.SourceURL)
-		// 红线：未授权商业库/镜像站/下载链接 → rejected（不抓取不写库）。
-		if commercialBlocklist[host] {
+		// 红线：未授权商业库/镜像站/下载链接（含其子域）→ rejected（不抓取不写库）。
+		if isCommercialBlocked(host) {
 			return AuthRejected, ""
 		}
 		// c04 已判 rejected 的取数路径直接红线。
