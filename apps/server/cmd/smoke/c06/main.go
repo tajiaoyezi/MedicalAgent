@@ -10,11 +10,15 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"medoffice/server/internal/aimed"
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/db"
 	"medoffice/server/internal/knowledge"
+	"medoffice/server/internal/model"
 	"medoffice/server/internal/parsing"
+	"medoffice/server/internal/pubmed"
+	"medoffice/server/internal/rag"
 )
 
 func okAssert(cond bool, msg string) {
@@ -62,6 +66,17 @@ func cleanup(g *gorm.DB, tenantID string) {
 	g.Exec(`DELETE FROM kb_documents WHERE tenant_id = ? AND kb_id IN (SELECT kb_id FROM knowledge_bases WHERE tenant_id = ? AND name LIKE 'c06-smoke%')`, tenantID, tenantID)
 	g.Exec(`DELETE FROM source_whitelist_rules WHERE source_identifier LIKE 'c06-smoke%'`)
 	g.Exec(`DELETE FROM knowledge_bases WHERE tenant_id = ? AND name LIKE 'c06-smoke%'`, tenantID)
+	// kb_qa 测试会话 + 消息 + 引用 + 最近任务 + agent 追踪（best-effort）。
+	var convs []string
+	g.Raw(`SELECT conversation_id FROM conversations WHERE tenant_id = ? AND title LIKE 'c06-smoke%'`, tenantID).Scan(&convs)
+	for _, cid := range convs {
+		g.Exec(`DELETE FROM citations WHERE message_id IN (SELECT message_id FROM messages WHERE conversation_id = ?)`, cid)
+		g.Exec(`DELETE FROM recent_tasks WHERE ref_type = 'conversation' AND ref_id = ?`, cid)
+		g.Exec(`DELETE FROM agent_steps WHERE run_id IN (SELECT run_id FROM agent_runs WHERE conversation_id = ?)`, cid)
+		g.Exec(`DELETE FROM agent_runs WHERE conversation_id = ?`, cid)
+		g.Exec(`DELETE FROM messages WHERE conversation_id = ?`, cid)
+		g.Exec(`DELETE FROM conversations WHERE conversation_id = ?`, cid)
+	}
 }
 
 func main() {
@@ -308,8 +323,58 @@ func main() {
 	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id = ? AND action_type = 'kb_import_redaction_block'`, tenantID).Scan(&redactBlock)
 	okAssert(redactBlock >= 1, "需公网时先过 c09 门禁，默认拒绝→降级私有化/离线并留痕（不放行公网）")
 
+	// ================= PR3 wave A：知识库问答接 c04（组 6 QA + 组 7 溯源 + 9.4）=================
+	fmt.Println("\n[14] 知识库问答（§11.7 接 c04 RAG/Answer + kb_id 选择 + 溯源 + 最近任务）")
+	model.Init(cfg.Model.CredentialSecret, cfg.Model.HealthTTLSeconds)
+	qaSvc := aimed.NewService(rag.NewEngine(pubmed.NewService(nil, nil, false)))
+
+	convID, err := knowledge.StartKBQA(g, admin, "c06-smoke-qa 术后护理")
+	okAssert(err == nil && convID != "", "创建知识库问答会话")
+	var convRow struct {
+		Module      string `gorm:"column:module"`
+		Source      string `gorm:"column:source"`
+		AllowKB     bool   `gorm:"column:allow_kb"`
+		AllowPubmed bool   `gorm:"column:allow_pubmed"`
+	}
+	g.Raw(`SELECT module, source, allow_kb, allow_pubmed FROM conversations WHERE conversation_id = ?`, convID).Scan(&convRow)
+	okAssert(convRow.Module == "kb_qa" && convRow.Source == "医疗知识库问答", "会话 module=kb_qa、source=医疗知识库问答（非 AIMed，c05 可按 module 识别恢复）")
+	okAssert(convRow.AllowKB && !convRow.AllowPubmed, "kb_qa 数据源仅知识库（allow_kb=true、allow_pubmed=false）")
+
+	// importKB（来自 [11]）已有 2 条已索引 kb chunk；问答 scope 到 importKB → 命中 + 引用溯源到该库 chunk
+	res, err := knowledge.AskKB(g, qaSvc, admin, convID, []string{importKB}, "术后康复护理要点")
+	okAssert(err == nil && res != nil, "AskKB 返回答案")
+	okAssert(res.Draft && res.Disclaimer != "", "答案默认草稿 + 携 §19.3 医疗免责声明")
+	okAssert(len(res.Citations) >= 1, "答案带引用（复用 c04 citations 溯源）")
+	kbCited := false
+	for _, ct := range res.Citations {
+		if ct.KBID == importKB && ct.ChunkID != "" {
+			kbCited = true
+		}
+	}
+	okAssert(kbCited, "引用溯源到 知识库(kb_id)+chunk 级定位（§11.8）")
+
+	var rtCount int
+	g.Raw(`SELECT COUNT(*)::int FROM recent_tasks WHERE tenant_id=? AND user_id=? AND source='医疗知识库问答' AND ref_type='conversation' AND ref_id=? AND deleted_at IS NULL`, tenantID, adminID, convID).Scan(&rtCount)
+	okAssert(rtCount == 1, "问答写入最近任务（source=医疗知识库问答/ref_type=conversation/ref_id=会话，c05 可按 ref_id 恢复）")
+
+	// kb_id 数据源选择：scope 到无资料的空库 → 无召回不臆造
+	emptyKB, _ := knowledge.Create(g, admin, "c06-smoke-qa-empty", "空库", "测试")
+	res2, err := knowledge.AskKB(g, qaSvc, admin, convID, []string{emptyKB}, "术后康复护理要点")
+	okAssert(err == nil && res2.NoResults, "选定无资料库（kb_id 数据源选择生效）→ 无召回不臆造（NoResults）")
+
+	// 高风险前置：高风险问题 + 无 highrisk:confirm 角色 → 需 doctor/reviewer 确认后方可下发
+	res3, err := knowledge.AskKB(g, qaSvc, admin, convID, []string{importKB}, "这个药每天吃几次、用法用量与剂量是多少")
+	okAssert(err == nil && res3.HighRisk && res3.RequiresConfirmation, "高风险 kb_qa 答案下发前进 c05 message 级确认（普通用户/无授权角色不可直接下发）")
+
+	// per-user 会话隔离 + module 隔离
+	_, err = knowledge.AskKB(g, qaSvc, normal, convID, []string{importKB}, "x")
+	okAssert(err == knowledge.ErrNotFound, "他人 kb_qa 会话不可访问（per-user 隔离）")
+	aimedConv, _ := aimed.CreateConversation(g, tenantID, adminID, aimed.ModuleAimed, "general", "c06-smoke-aimed")
+	_, err = knowledge.AskKB(g, qaSvc, admin, aimedConv, []string{importKB}, "x")
+	okAssert(err == knowledge.ErrInvalidInput, "AIMed 会话不可走 kb_qa 入口（module 隔离）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线 + PR3wA 知识库问答）全部通过")
 }
 
 // makeKBDoc 造一个属某 KB 的正式文档：documents(app_source=kb)+version+2 chunk（source_type=document，待索引就绪标 kb）

@@ -57,7 +57,6 @@ func New(d Deps) *gin.Engine {
 	routes.RegisterPortal(r, d.DB)
 	routes.RegisterDocuments(r, d.DB, d.Storage)
 	routes.RegisterRecentTasks(r, d.DB)
-	routes.RegisterKnowledge(r, d.DB) // c06 知识库管理（首页卡片/排序/创建/置顶·权重）
 	routes.RegisterAdmin(r, d.DB)
 	routes.RegisterEditor(r, d.DB, d.Storage, editorSvc)
 	routes.RegisterBridge(r, d.DB, editorSvc)
@@ -70,6 +69,8 @@ func New(d Deps) *gin.Engine {
 	ragEngine := rag.NewEngine(pubSvc)
 	rag.RegisterIndexConsumer(d.DB)       // c04：订阅 c03 indexing_handoff「索引就绪」事件构建内存检索索引
 	knowledge.RegisterIndexConsumer(d.DB) // c06：同一事件知识库侧消费方（标记 kb chunk + 置 indexed + 刷新 document_count，须在 rag 之后）
-	routes.RegisterAIMed(r, d.DB, d.Storage, aimed.NewService(ragEngine))
+	aimedSvc := aimed.NewService(ragEngine)
+	routes.RegisterAIMed(r, d.DB, d.Storage, aimedSvc)
+	routes.RegisterKnowledge(r, d.DB, aimedSvc) // c06 知识库管理 + 检索问答（复用 c04 RAG/Answer 内核）
 	return r
 }

@@ -53,6 +53,9 @@ type RetrieveRequest struct {
 	ConversationID  string
 	MessageID       string
 	TopN            int
+	// KBIDs：知识库数据源 kb_id 选择（c06 §11.6/§11.7「选定的一个或多个 kb_id」前置数据源选择）。
+	// 空 = 不按 kb 限定（保留既有 AIMed AllowKB 行为不变）；非空 = 仅纳入这些 kb 的 chunk 进检索候选。
+	KBIDs []string
 }
 
 // RetrieveResult 检索输出。
@@ -122,7 +125,16 @@ func (e *Engine) Retrieve(db *gorm.DB, req RetrieveRequest) (RetrieveResult, err
 		}
 	}
 	if req.AllowKB {
+		kbScope := map[string]bool{}
+		for _, id := range req.KBIDs {
+			if id != "" {
+				kbScope[id] = true
+			}
+		}
 		for _, ic := range Default().kbChunks() {
+			if len(kbScope) > 0 && !kbScope[ic.KBID()] {
+				continue // 数据源选择：仅纳入选定 kb_id 的 chunk（空 scope 表示不限定）
+			}
 			c := chunkToCandidate(ic)
 			c.SourceType = "kb"
 			c.KBID = ic.KBID()
