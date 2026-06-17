@@ -56,7 +56,17 @@ type RetrieveRequest struct {
 	// KBIDs：知识库数据源 kb_id 选择（c06 §11.6/§11.7「选定的一个或多个 kb_id」前置数据源选择）。
 	// 空 = 不按 kb 限定（保留既有 AIMed AllowKB 行为不变）；非空 = 仅纳入这些 kb 的 chunk 进检索候选。
 	KBIDs []string
+	// SearchMode：全局搜索检索模式（c06 §11.6）keyword=BM25 / semantic=向量 / hybrid=合并去重+rerank。
+	// 空 = hybrid（保留既有 AIMed/问答行为不变）。
+	SearchMode string
 }
+
+// 检索模式常量（§11.6）。
+const (
+	SearchKeyword = "keyword"
+	SearchSemantic = "semantic"
+	SearchHybrid   = "hybrid"
+)
 
 // RetrieveResult 检索输出。
 type RetrieveResult struct {
@@ -200,17 +210,30 @@ func (e *Engine) Retrieve(db *gorm.DB, req RetrieveRequest) (RetrieveResult, err
 	cands = dedup(cands)
 	recordStep(db, req.User.TenantID, runID, "merge_dedup", "", fmt.Sprintf("去重后 %d", len(cands)), nil)
 
-	// 7. rerank（模型优先；不可用 RRF 兜底）
+	// 7. 排序：keyword=纯 BM25 / semantic=纯向量 / hybrid（默认）=rerank（模型优先；不可用 RRF 兜底）（§11.6）
 	method := "rrf"
-	if scores, err := e.modelRerank(db, ictx, rewritten, cands); err == nil {
+	switch req.SearchMode {
+	case SearchKeyword:
 		for i := range cands {
-			cands[i].score = scores[i]
+			cands[i].score = cands[i].bm25
 		}
-		method = "model"
-	} else {
-		fused := rrf(collect(cands, func(c Candidate) float64 { return c.bm25 }), collect(cands, func(c Candidate) float64 { return c.vec }))
+		method = "bm25"
+	case SearchSemantic:
 		for i := range cands {
-			cands[i].score = fused[i]
+			cands[i].score = cands[i].vec
+		}
+		method = "vector"
+	default: // hybrid / 空（保留既有问答/AIMed 行为）
+		if scores, err := e.modelRerank(db, ictx, rewritten, cands); err == nil {
+			for i := range cands {
+				cands[i].score = scores[i]
+			}
+			method = "model"
+		} else {
+			fused := rrf(collect(cands, func(c Candidate) float64 { return c.bm25 }), collect(cands, func(c Candidate) float64 { return c.vec }))
+			for i := range cands {
+				cands[i].score = fused[i]
+			}
 		}
 	}
 	res.RerankMethod = method

@@ -77,6 +77,12 @@ func cleanup(g *gorm.DB, tenantID string) {
 		g.Exec(`DELETE FROM messages WHERE conversation_id = ?`, cid)
 		g.Exec(`DELETE FROM conversations WHERE conversation_id = ?`, cid)
 	}
+	// 自愈物化计数：document_count 从 kb_documents 真值重算（修复「kb_document 删除后无后续索引事件」遗留的漂移），
+	// member_count 重置（ACL 阶段前恒 0）。使冒烟对历史污染稳健、且 document_count 与真值一致。
+	g.Exec(`UPDATE knowledge_bases SET
+		document_count = (SELECT COUNT(*) FROM kb_documents kd WHERE kd.kb_id = knowledge_bases.kb_id AND kd.index_status='indexed' AND kd.is_staging=FALSE),
+		member_count = 0
+		WHERE tenant_id = ?`, tenantID)
 }
 
 func main() {
@@ -373,8 +379,43 @@ func main() {
 	_, err = knowledge.AskKB(g, qaSvc, admin, aimedConv, []string{importKB}, "x")
 	okAssert(err == knowledge.ErrInvalidInput, "AIMed 会话不可走 kb_qa 入口（module 隔离）")
 
+	// ================= PR3 wave B：全局搜索（§11.6 三模式 + 多维筛选）=================
+	fmt.Println("\n[15] 全局搜索（§11.6 三模式 + 多维筛选 + kb_id 选择 + 可见性）")
+	searchEng := rag.NewEngine(pubmed.NewService(nil, nil, false))
+	for _, mode := range []string{"keyword", "semantic", "hybrid"} {
+		sr, serr := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", mode, knowledge.SearchFilters{})
+		okAssert(serr == nil && sr.Total >= 1 && sr.Mode == mode, "搜索模式 "+mode+" 返回命中（mode 透传，importKB 已索引 chunk）")
+	}
+	// 非法 mode → 归一为 hybrid
+	srDefault, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "bogus", knowledge.SearchFilters{})
+	okAssert(srDefault.Mode == "hybrid", "非法检索模式归一为 hybrid")
+	// 多维筛选：文档类型维（txt 命中 / pdf 不命中），取自 documents 文件类型字段
+	srTxt, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "keyword", knowledge.SearchFilters{DocType: "txt"})
+	okAssert(srTxt.Total >= 1, "按文档类型=txt 筛选命中文件类型字段")
+	srPdf, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "keyword", knowledge.SearchFilters{DocType: "pdf"})
+	okAssert(srPdf.Total == 0, "按文档类型=pdf 筛选（无 pdf 资料）→ 0 命中")
+	// 来源维（upload 命中 / pubmed 不命中），取自 kb_documents.source_type —— 与文档类型用不同承载字段
+	srUp, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "keyword", knowledge.SearchFilters{Source: "upload"})
+	okAssert(srUp.Total >= 1, "按来源=upload 筛选命中来源类型字段（与文档类型维不混同）")
+	srPm, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "keyword", knowledge.SearchFilters{Source: "pubmed"})
+	okAssert(srPm.Total == 0, "按来源=pubmed 筛选（无 pubmed 资料）→ 0 命中")
+	// kb_id 数据源选择 + 可见性裁剪
+	srEmpty, _ := knowledge.KBSearch(g, searchEng, admin, []string{emptyKB}, "smoke chunk", "hybrid", knowledge.SearchFilters{})
+	okAssert(srEmpty.Total == 0, "scope 到空库 → 0 命中（kb_id 数据源选择生效）")
+	_, errV := knowledge.KBSearch(g, searchEng, normal, []string{importKB}, "smoke chunk", "hybrid", knowledge.SearchFilters{})
+	okAssert(errV == knowledge.ErrForbidden, "普通用户搜索无权私有库被拒（可见性裁剪）")
+	// 溯源元数据随命中返回（kb_id + chunk_id）
+	srSrc, _ := knowledge.KBSearch(g, searchEng, admin, []string{importKB}, "smoke chunk", "hybrid", knowledge.SearchFilters{})
+	hasKBMeta := false
+	for _, h := range srSrc.Hits {
+		if h.KBID == importKB && h.ChunkID != "" {
+			hasKBMeta = true
+		}
+	}
+	okAssert(hasKBMeta, "搜索命中携带溯源元数据（kb_id + chunk_id，§11.8）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线 + PR3wA 知识库问答）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线 + PR3wA 问答 + PR3wB 搜索）全部通过")
 }
 
 // makeKBDoc 造一个属某 KB 的正式文档：documents(app_source=kb)+version+2 chunk（source_type=document，待索引就绪标 kb）
