@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/db"
 	"medoffice/server/internal/knowledge"
+	"medoffice/server/internal/parsing"
 )
 
 func okAssert(cond bool, msg string) {
@@ -43,8 +45,22 @@ var expected13 = []string{
 }
 
 func cleanup(g *gorm.DB, tenantID string) {
-	g.Exec(`DELETE FROM audit_logs WHERE tenant_id = ? AND action_type IN ('kb_create','kb_ranking_update')
-		AND target_id IN (SELECT kb_id::text FROM knowledge_bases WHERE tenant_id = ? AND name LIKE 'c06-smoke%')`, tenantID, tenantID)
+	// 导入/重建/脱敏审计 + 测试文档/chunk/事件 + kb_documents（FK 级联随 knowledge_bases 删除）。
+	g.Exec(`DELETE FROM audit_logs WHERE tenant_id = ? AND action_type LIKE 'kb_%'`, tenantID)
+	var docs []string
+	g.Raw(`SELECT document_id FROM documents WHERE tenant_id = ? AND name LIKE 'c06-smoke%'`, tenantID).Scan(&docs)
+	for _, id := range docs {
+		g.Exec(`DELETE FROM document_events WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM document_chunks WHERE document_id = ?)`, id)
+		g.Exec(`DELETE FROM document_chunks WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM document_parse_jobs WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM kb_documents WHERE document_id = ?`, id)
+		g.Exec(`UPDATE documents SET current_version_id = NULL WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM document_versions WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM documents WHERE document_id = ?`, id)
+	}
+	g.Exec(`DELETE FROM kb_documents WHERE tenant_id = ? AND kb_id IN (SELECT kb_id FROM knowledge_bases WHERE tenant_id = ? AND name LIKE 'c06-smoke%')`, tenantID, tenantID)
+	g.Exec(`DELETE FROM source_whitelist_rules WHERE source_identifier LIKE 'c06-smoke%'`)
 	g.Exec(`DELETE FROM knowledge_bases WHERE tenant_id = ? AND name LIKE 'c06-smoke%'`, tenantID)
 }
 
@@ -179,6 +195,128 @@ func main() {
 	okAssert(knowledge.SetRanking(g, normal, kbA, &pinned, nil, false) == knowledge.ErrForbidden, "普通用户配置他人库排序被拒")
 	okAssert(knowledge.SetRanking(g, admin, "00000000-0000-0000-0000-000000000000", &pinned, nil, false) == knowledge.ErrNotFound, "不存在的库配置 → ErrNotFound")
 
+	// ================= PR2：受控导入管线（任务组 4·5）=================
+	importKB, _ := knowledge.Create(g, admin, "c06-smoke-import", "导入测试库", "测试")
+	var seedKB string
+	g.Raw(`SELECT kb_id FROM knowledge_bases WHERE tenant_id = ? AND is_seed = TRUE LIMIT 1`, tenantID).Scan(&seedKB)
+
+	authStatusOf := func(kbDocID string) (string, *string, *string) {
+		var r struct {
+			S    string  `gorm:"column:authorization_status"`
+			Rule *string `gorm:"column:whitelist_rule_id"`
+			By   *string `gorm:"column:authorized_by"`
+		}
+		g.Raw(`SELECT authorization_status, whitelist_rule_id, authorized_by FROM kb_documents WHERE kb_document_id = ?`, kbDocID).Scan(&r)
+		return r.S, r.Rule, r.By
+	}
+
+	// ---- [8] 受控导入授权状态机（D4：来源类型默认门 + 白名单/管理员授权放行 + 三态）----
+	fmt.Println("\n[8] 受控导入授权状态机（D4 三态）")
+	g.Exec(`INSERT INTO source_whitelist_rules (source_identifier, is_allowed, authorization_note, scope) VALUES ('c06-smoke-allow.example.org', TRUE, '测试白名单', 'platform')`)
+	dUp, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcUpload, SourceURL: "file://c06-smoke.docx", Title: "上传件"})
+	s1, _, _ := authStatusOf(dUp)
+	okAssert(s1 == knowledge.AuthAuthorized, "上传来源 → authorized")
+	dPm, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcPubMed, SourceURL: "pmc:PMC123", Title: "PMC 文献", C04AuthHint: knowledge.AuthAuthorized})
+	s2, _, _ := authStatusOf(dPm)
+	okAssert(s2 == knowledge.AuthAuthorized, "PubMed/PMC（消费 c04 authorized 标记）→ authorized")
+	dWl, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://c06-smoke-allow.example.org/guideline", Title: "白名单官网"})
+	s3, rule3, _ := authStatusOf(dWl)
+	okAssert(s3 == knowledge.AuthAuthorized && rule3 != nil && *rule3 != "", "命中白名单 URL → authorized 且写 whitelist_rule_id")
+	dUnknown, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://unknown-c06.example.net/x", Title: "未知来源"})
+	s4, _, _ := authStatusOf(dUnknown)
+	okAssert(s4 == knowledge.AuthPreviewOnly, "未命中白名单且无管理员授权 URL → preview_only（仅临时预览）")
+	dAdmin, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://unknown-c06.example.net/y", Title: "管理员授权", AdminAuthorized: true})
+	s5, _, by5 := authStatusOf(dAdmin)
+	okAssert(s5 == knowledge.AuthAuthorized && by5 != nil && *by5 != "", "未命中白名单但管理员显式授权 → authorized 且写 authorized_by")
+	_, errRej := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://www.cnki.net/article/x", Title: "商业库"})
+	okAssert(errRej == knowledge.ErrRejectedSource, "未授权商业库/镜像站 → rejected 红线阻断（不落 staging）")
+
+	// ---- [9] 上传入口权限分级（CanUploadToKB）----
+	fmt.Println("\n[9] 上传入口权限分级")
+	canAdmin, _ := knowledge.CanUploadToKB(g, admin, seedKB)
+	okAssert(canAdmin, "平台管理员可上传到任意库（含预置库）")
+	canNormal, _ := knowledge.CanUploadToKB(g, normal, seedKB)
+	okAssert(!canNormal, "普通用户不得写入公共/预置库")
+	_, errUp := knowledge.PreviewImport(g, normal, knowledge.ImportRequest{KBID: seedKB, SourceType: knowledge.SrcUpload, Title: "越权"})
+	okAssert(errUp == knowledge.ErrForbidden, "普通用户对公共库发起导入被拒（ErrForbidden）")
+
+	// ---- [10] staging 物理隔离 + 入库前预览确认 + 必录字段硬门禁 ----
+	fmt.Println("\n[10] staging 隔离 + 入库确认 + §11.5.1 必录字段")
+	var stagingFlag bool
+	g.Raw(`SELECT is_staging FROM kb_documents WHERE kb_document_id = ?`, dUnknown).Scan(&stagingFlag)
+	okAssert(stagingFlag, "preview_only 资料 is_staging=true（与正式库物理隔离、不进正式索引）")
+	okAssert(knowledge.ConfirmImport(g, admin, dUnknown) == knowledge.ErrNotAuthorized, "preview_only 不可确认入正式库（ErrNotAuthorized）")
+	okAssert(knowledge.ConfirmImport(g, admin, dPm) == nil, "authorized + 必录字段齐 → 确认入库成功")
+	g.Raw(`SELECT is_staging FROM kb_documents WHERE kb_document_id = ?`, dPm).Scan(&stagingFlag)
+	okAssert(!stagingFlag, "确认后 is_staging=false（入正式库）")
+	// 必录字段硬门禁：人为清空 source_type 后确认被阻断
+	g.Exec(`UPDATE kb_documents SET is_staging = TRUE, source_type = '' WHERE kb_document_id = ?`, dWl)
+	okAssert(knowledge.ConfirmImport(g, admin, dWl) == knowledge.ErrMissingMeta, "缺非空硬门禁字段（source_type）阻断入库（ErrMissingMeta）")
+	// 取消预览不落库
+	okAssert(knowledge.CancelImport(g, admin, dUp) == nil, "取消预览删除 staging 行")
+	var cntUp int
+	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE kb_document_id = ?`, dUp).Scan(&cntUp)
+	okAssert(cntUp == 0, "取消后无残留")
+
+	// ---- [11] 消费 c03 索引就绪事件：置 indexed + 标记 kb chunk + 刷新 document_count（5.4a）----
+	fmt.Println("\n[11] 消费 c03 索引就绪事件（唯一触发源）")
+	docID, _ := makeKBDoc(g, tenantID, adminID, importKB)
+	// 事件到达前 MUST NOT 自行置 indexed
+	var preIdx string
+	g.Raw(`SELECT index_status FROM kb_documents WHERE document_id = ?`, docID).Scan(&preIdx)
+	okAssert(preIdx == "pending", "索引就绪事件到达前 index_status 仍为 pending")
+	_ = knowledge.HandleIndexReady(g, parsing.IndexReadyEvent{TenantID: tenantID, DocumentID: docID, DocumentVersion: 1, ChunkCount: 2})
+	var kbStatus string
+	g.Raw(`SELECT index_status FROM kb_documents WHERE document_id = ?`, docID).Scan(&kbStatus)
+	okAssert(kbStatus == "indexed", "消费事件后 kb_documents.index_status=indexed")
+	var kbChunkCnt int
+	g.Raw(`SELECT COUNT(*)::int FROM document_chunks WHERE document_id = ? AND source_type = 'kb' AND chunk_acl->>'kb_id' = ?`, docID, importKB).Scan(&kbChunkCnt)
+	okAssert(kbChunkCnt == 2, "chunk 被标记 source_type=kb 且 chunk_acl.kb_id 注入（c06 仅写值不改结构）")
+	var docCount int
+	g.Raw(`SELECT document_count FROM knowledge_bases WHERE kb_id = ?`, importKB).Scan(&docCount)
+	okAssert(docCount >= 1, "知识库 document_count 随索引就绪事件增量刷新（仅计 indexed 且非 staging）")
+
+	// ---- [12] 管理员触发重建索引产生 manual_reindex 事件（5.4）----
+	fmt.Println("\n[12] 重建索引 → manual_reindex document_events（c03 消费）")
+	var kbDocOfDoc string
+	g.Raw(`SELECT kb_document_id FROM kb_documents WHERE document_id = ? LIMIT 1`, docID).Scan(&kbDocOfDoc)
+	okAssert(knowledge.Reindex(g, admin, kbDocOfDoc) == nil, "管理员触发重建索引成功")
+	var reEvt int
+	g.Raw(`SELECT COUNT(*)::int FROM document_events WHERE document_id = ? AND event_type = 'manual_reindex'`, docID).Scan(&reEvt)
+	okAssert(reEvt == 1, "产生一条 event_type=manual_reindex 的 document_events（携 §10.6 契约字段，由 c03 消费）")
+	var afterReindex string
+	g.Raw(`SELECT index_status FROM kb_documents WHERE kb_document_id = ?`, kbDocOfDoc).Scan(&afterReindex)
+	okAssert(afterReindex == "pending", "重建索引后 index_status 回退 pending（收尾走同一索引就绪路径）")
+
+	// ---- [13] 公网导入前脱敏门禁默认拒绝（5.1/5.2，本期公网关闭）----
+	fmt.Println("\n[13] 公网导入前 PHI/PII 脱敏门禁（c09 未接入 → 默认拒绝/降级）")
+	g.Exec(`DELETE FROM audit_logs WHERE tenant_id = ? AND action_type = 'kb_import_redaction_block'`, tenantID)
+	_, _ = knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: importKB, SourceType: knowledge.SrcURL, SourceURL: "https://c06-smoke-allow.example.org/phi", Title: "含PHI", PublicNetwork: true})
+	var redactBlock int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id = ? AND action_type = 'kb_import_redaction_block'`, tenantID).Scan(&redactBlock)
+	okAssert(redactBlock >= 1, "需公网时先过 c09 门禁，默认拒绝→降级私有化/离线并留痕（不放行公网）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 foundation）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线）全部通过")
+}
+
+// makeKBDoc 造一个属某 KB 的正式文档：documents(app_source=kb)+version+2 chunk（source_type=document，待索引就绪标 kb）
+// + kb_documents（is_staging=false、authorized、必录字段齐、document_id 关联、index_status=pending）。返回 (documentID, kbDocumentID)。
+func makeKBDoc(g *gorm.DB, tenantID, ownerID, kbID string) (string, string) {
+	docID := uuid.NewString()
+	verID := uuid.NewString()
+	g.Exec(`INSERT INTO documents (document_id, tenant_id, owner_id, name, space, app_source) VALUES (?,?,?,?,'app','kb')`, docID, tenantID, ownerID, "c06-smoke-kbdoc.txt")
+	g.Exec(`INSERT INTO document_versions (version_id, document_id, tenant_id, document_version, file_hash, saved_by, source, object_key, size_bytes)
+		VALUES (?,?,?,1,?,?,'import','c06-smoke/key',0)`, verID, docID, tenantID, uuid.NewString(), ownerID)
+	g.Exec(`UPDATE documents SET current_version_id = ? WHERE document_id = ?`, verID, docID)
+	for i := 0; i < 2; i++ {
+		g.Exec(`INSERT INTO document_chunks (tenant_id, document_id, document_version, source_type, chunk_text, chunk_acl, superseded)
+			VALUES (?,?,1,'document',?,'{"inheritedFrom":"document"}'::jsonb,FALSE)`, tenantID, docID, fmt.Sprintf("c06 smoke chunk %d", i))
+	}
+	kbDocID := uuid.NewString()
+	g.Exec(`INSERT INTO kb_documents (kb_document_id, tenant_id, kb_id, document_id, source_url, source_type, imported_by,
+		copyright_status, source_version, parse_status, index_status, authorization_status, is_staging, title)
+		VALUES (?,?,?,?,?,'upload',?,'licensed','v1','parsed','pending','authorized',FALSE,'c06-smoke-kbdoc')`,
+		kbDocID, tenantID, kbID, docID, "file://c06-smoke-kbdoc.txt", ownerID)
+	return docID, kbDocID
 }

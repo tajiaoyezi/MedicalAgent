@@ -15,6 +15,7 @@ import (
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/editor"
 	"medoffice/server/internal/httpx"
+	"medoffice/server/internal/knowledge"
 	"medoffice/server/internal/model"
 	"medoffice/server/internal/pubmed"
 	"medoffice/server/internal/rag"
@@ -67,7 +68,8 @@ func New(d Deps) *gin.Engine {
 	// c04 AIMed RAG：PubMed 在线/离线双路径（本期公网默认关闭）+ RAG 引擎 + 索引就绪事件订阅。
 	pubSvc := pubmed.NewService(pubmed.NewOnlineProvider("", 5*time.Second), pubmed.NewOfflineProvider(), false)
 	ragEngine := rag.NewEngine(pubSvc)
-	rag.RegisterIndexConsumer(d.DB) // 订阅 c03 indexing_handoff「索引就绪」事件构建内存检索索引
+	rag.RegisterIndexConsumer(d.DB)       // c04：订阅 c03 indexing_handoff「索引就绪」事件构建内存检索索引
+	knowledge.RegisterIndexConsumer(d.DB) // c06：同一事件知识库侧消费方（标记 kb chunk + 置 indexed + 刷新 document_count，须在 rag 之后）
 	routes.RegisterAIMed(r, d.DB, d.Storage, aimed.NewService(ragEngine))
 	return r
 }
