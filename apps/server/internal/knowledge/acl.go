@@ -123,6 +123,12 @@ func GrantKB(db *gorm.DB, u auth.AuthUser, kbID, pType, pID, level string) error
 		return err
 	}
 	if !can {
+		// 无权管理接口被拒须留痕（spec「普通用户绕过 UI 直接调用被拒绝」AND 写 audit_logs）。
+		_ = audit.Write(db, audit.Entry{
+			TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
+			ActionType: "kb_acl_grant", TargetType: audit.P("knowledge_base"), TargetID: audit.P(kbID),
+			Result: "失败", FailureReason: audit.P("非库管理员，无权授予"),
+		})
 		return ErrForbidden
 	}
 	var docs []string

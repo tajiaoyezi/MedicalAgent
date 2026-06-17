@@ -497,6 +497,16 @@ func main() {
 	canA, _ := knowledge.CanManageKB(g, admin, privKB)
 	canN, _ := knowledge.CanManageKB(g, normal, privKB)
 	okAssert(canA && !canN, "库管理判定：平台管理员/创建人可、仅持 view 的普通用户不可")
+	// 8.3：普通用户越权授予被拒须写 audit_logs(失败)（绕过 UI 直接调用留痕）
+	var denyAudit int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND actor_id=? AND action_type='kb_acl_grant' AND target_id=? AND result='失败'`, tenantID, userID, privKB).Scan(&denyAudit)
+	okAssert(denyAudit >= 1, "普通用户越权授予被拒并写 audit_logs(失败)（8.3 绕过 UI 调用留痕）")
+	// 库管理员（per-kb manage 授予）可上传到自管库（kb-import「库管理员上传自管库」）
+	canUpView, _ := knowledge.CanUploadToKB(g, normal, privKB)
+	okAssert(!canUpView, "仅持 view 的普通用户不可上传到该库")
+	_ = knowledge.GrantKB(g, admin, privKB, "user", userID, "manage")
+	canUpMgr, _ := knowledge.CanUploadToKB(g, normal, privKB)
+	okAssert(canUpMgr, "授予 per-kb manage 后为库管理员、可上传到自管库")
 
 	cleanup(g, tenantID)
 	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL）全部通过")

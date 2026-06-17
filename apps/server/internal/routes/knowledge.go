@@ -119,6 +119,13 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragE
 		}
 		_ = c.ShouldBindJSON(&body)
 		if err := knowledge.SetRanking(db, user, c.Param("id"), body.IsPinned, body.ManualWeight, body.ClearWeight); err != nil {
+			if errors.Is(err, knowledge.ErrForbidden) {
+				_ = audit.Write(db, audit.Entry{
+					TenantID: user.TenantID, ActorID: audit.P(user.UserID), ActorRole: roleCSV(user),
+					ActionType: "kb_ranking_update", TargetType: audit.P("knowledge_base"), TargetID: audit.P(c.Param("id")),
+					Result: "失败", FailureReason: audit.P("无权配置排序"),
+				})
+			}
 			code, msg := kbStatus(err)
 			httpx.Fail(c, code, msg)
 			return

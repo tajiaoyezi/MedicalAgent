@@ -172,7 +172,18 @@ func CanUploadToKB(db *gorm.DB, u auth.AuthUser, kbID string) (bool, error) {
 	if rows[0].CreatedBy != nil && *rows[0].CreatedBy == u.UserID {
 		return true, nil
 	}
-	return false, nil
+	// 库管理员/上传导入级授予者（对该库文档持 edit|manage|owner per-kb 授予）可上传到自管库
+	// （kb-import「知识库管理员仅能上传到自管库」；锚定 c01 document_permissions 授予，非新全局角色）。
+	var n int
+	db.Raw(
+		`SELECT COUNT(*)::int FROM kb_documents kbd JOIN document_permissions dp ON dp.document_id = kbd.document_id
+		 WHERE kbd.tenant_id = ? AND kbd.kb_id = ? AND dp.permission_level IN ('edit','manage','owner') AND (
+		   (dp.principal_type='user' AND dp.principal_id = ?)
+		   OR (dp.principal_type='role' AND dp.principal_id IN ?)
+		   OR (dp.principal_type='dept' AND dp.principal_id = ?))`,
+		u.TenantID, kbID, u.UserID, roleSlugsForIN(u), deptForMatch(u),
+	).Scan(&n)
+	return n > 0, nil
 }
 
 // redactionGateOutbound 是「公网导入前 PHI/PII 脱敏门禁」（5.1/5.2）：调用公网模型（解析/向量化/抓取）前消费
