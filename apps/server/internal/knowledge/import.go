@@ -172,7 +172,18 @@ func CanUploadToKB(db *gorm.DB, u auth.AuthUser, kbID string) (bool, error) {
 	if rows[0].CreatedBy != nil && *rows[0].CreatedBy == u.UserID {
 		return true, nil
 	}
-	return false, nil
+	// 库管理员/上传导入级授予者（对该库文档持 edit|manage|owner per-kb 授予）可上传到自管库
+	// （kb-import「知识库管理员仅能上传到自管库」；锚定 c01 document_permissions 授予，非新全局角色）。
+	var n int
+	db.Raw(
+		`SELECT COUNT(*)::int FROM kb_documents kbd JOIN document_permissions dp ON dp.document_id = kbd.document_id
+		 WHERE kbd.tenant_id = ? AND kbd.kb_id = ? AND dp.permission_level IN ('edit','manage','owner') AND (
+		   (dp.principal_type='user' AND dp.principal_id = ?)
+		   OR (dp.principal_type='role' AND dp.principal_id IN ?)
+		   OR (dp.principal_type='dept' AND dp.principal_id = ?))`,
+		u.TenantID, kbID, u.UserID, roleSlugsForIN(u), deptForMatch(u),
+	).Scan(&n)
+	return n > 0, nil
 }
 
 // redactionGateOutbound 是「公网导入前 PHI/PII 脱敏门禁」（5.1/5.2）：调用公网模型（解析/向量化/抓取）前消费
@@ -307,6 +318,14 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	// 确认入库：staging → 正式库（物理进入正式检索范围由 D3 的 is_staging=false 标记）。
 	if err := db.Exec(`UPDATE kb_documents SET is_staging = FALSE, updated_at = NOW() WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID).Error; err != nil {
 		return err
+	}
+	// 物化 document_acl（8.4）：seed 公共库授全角色 view、传播 KB 既有授权到新文档、刷新 member_count。
+	if r.DocumentID != nil && *r.DocumentID != "" {
+		var seedRows []struct {
+			IsSeed bool `gorm:"column:is_seed"`
+		}
+		_ = db.Raw(`SELECT is_seed FROM knowledge_bases WHERE kb_id = ? AND tenant_id = ?`, r.KBID, u.TenantID).Scan(&seedRows)
+		_ = applyImportGrants(db, u.TenantID, r.KBID, *r.DocumentID, len(seedRows) > 0 && seedRows[0].IsSeed)
 	}
 	// 已落盘文档 → 入队 c03 解析（worker 解析/分块/向量化后发「索引就绪」事件，由 c06 索引消费方置 indexed + 刷新计数）。
 	if r.DocumentID != nil && *r.DocumentID != "" {

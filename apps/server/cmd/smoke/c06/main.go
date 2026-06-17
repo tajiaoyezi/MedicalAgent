@@ -414,8 +414,102 @@ func main() {
 	}
 	okAssert(hasKBMeta, "搜索命中携带溯源元数据（kb_id + chunk_id，§11.8）")
 
+	// ================= PR3 wave C：知识库级 ACL（组 8）+ member_count（3.2）=================
+	fmt.Println("\n[16] 知识库级 ACL（document_permissions 聚合）+ member_count（§11.4/§11.9/§19.1）")
+	mkDocChunks := func(name string) string {
+		docID := uuid.NewString()
+		verID := uuid.NewString()
+		g.Exec(`INSERT INTO documents (document_id, tenant_id, owner_id, name, space, app_source) VALUES (?,?,?,?,'app','kb')`, docID, tenantID, adminID, name)
+		g.Exec(`INSERT INTO document_versions (version_id, document_id, tenant_id, document_version, file_hash, saved_by, source, object_key, size_bytes)
+			VALUES (?,?,?,1,?,?,'import','c06-smoke/key',0)`, verID, docID, tenantID, uuid.NewString(), adminID)
+		g.Exec(`UPDATE documents SET current_version_id = ? WHERE document_id = ?`, verID, docID)
+		for i := 0; i < 2; i++ {
+			g.Exec(`INSERT INTO document_chunks (tenant_id, document_id, document_version, source_type, chunk_text, chunk_acl, superseded)
+				VALUES (?,?,1,'document',?,'{"inheritedFrom":"document"}'::jsonb,FALSE)`, tenantID, docID, fmt.Sprintf("acl chunk %d", i))
+		}
+		return docID
+	}
+	importToKB := func(kbID, docID, title string) {
+		kbDocID, _ := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: kbID, SourceType: knowledge.SrcUpload, SourceURL: "file://" + title, Title: title, DocumentID: docID})
+		_ = knowledge.ConfirmImport(g, admin, kbDocID)
+		_ = knowledge.HandleIndexReady(g, parsing.IndexReadyEvent{TenantID: tenantID, DocumentID: docID, DocumentVersion: 1, ChunkCount: 2})
+	}
+
+	// (a) 导入 seed 公共库 → 全角色 view（8.4），普通用户经角色授权可检索问答
+	docSeed := mkDocChunks("c06-smoke-acl-seed.txt")
+	importToKB(seedKB, docSeed, "c06-smoke-acl-seed.txt")
+	var roleGrant int
+	g.Raw(`SELECT COUNT(*)::int FROM document_permissions WHERE document_id=? AND principal_type='role' AND principal_id='user' AND permission_level='view'`, docSeed).Scan(&roleGrant)
+	okAssert(roleGrant == 1, "seed 库导入 → 文档级 document_permissions 授予角色 view（8.4 物化 document_acl）")
+	var seedMembers int
+	g.Raw(`SELECT member_count FROM knowledge_bases WHERE kb_id=?`, seedKB).Scan(&seedMembers)
+	okAssert(seedMembers == 2, "member_count = 授权用户去重计数（admin owner + user 经角色授权 = 2，3.2）")
+	convN, _ := knowledge.StartKBQA(g, normal, "c06-smoke-acl-qa")
+	resN, errN := knowledge.AskKB(g, qaSvc, normal, convN, []string{seedKB}, "acl chunk")
+	seedHit := false
+	if errN == nil && resN != nil {
+		for _, ct := range resN.Citations {
+			if ct.KBID == seedKB {
+				seedHit = true
+			}
+		}
+	}
+	okAssert(seedHit, "普通用户经 seed 库角色授权可问答检索到其文档（8.6 读取侧六维过滤放行授权内容）")
+
+	// (b) 私有库默认隔离 → 授权后可见可检索（8.2/8.3）
+	privKB, _ := knowledge.Create(g, admin, "c06-smoke-acl-priv", "私有库", "测试")
+	docPriv := mkDocChunks("c06-smoke-acl-priv.txt")
+	importToKB(privKB, docPriv, "c06-smoke-acl-priv.txt")
+	vlist, _ := knowledge.ListVisible(g, normal)
+	inList := func(list []knowledge.Card, id string) bool {
+		for _, c := range list {
+			if c.KBID == id {
+				return true
+			}
+		}
+		return false
+	}
+	okAssert(!inList(vlist, privKB), "私有库默认对普通用户不可见（§11.4）")
+	_, e := knowledge.Get(g, normal, privKB)
+	okAssert(e == knowledge.ErrNotFound, "普通用户取无权私有库 → ErrNotFound")
+	_, e = knowledge.AskKB(g, qaSvc, normal, convN, []string{privKB}, "acl chunk")
+	okAssert(e == knowledge.ErrForbidden, "普通用户问答无权私有库被拒（数据源裁剪）")
+	// 授予
+	okAssert(knowledge.GrantKB(g, admin, privKB, "user", userID, "view") == nil, "库管理员授予普通用户 view")
+	nList2, _ := knowledge.ListVisible(g, normal)
+	okAssert(inList(nList2, privKB), "授权后私有库对普通用户可见（§11.4 被授权私有库）")
+	resP, errP := knowledge.AskKB(g, qaSvc, normal, convN, []string{privKB}, "acl chunk")
+	privHit := false
+	if errP == nil && resP != nil {
+		for _, ct := range resP.Citations {
+			if ct.KBID == privKB {
+				privHit = true
+			}
+		}
+	}
+	okAssert(privHit, "授权后普通用户可问答检索到私有库文档（document_acl 聚合放行）")
+	var privMembers int
+	g.Raw(`SELECT member_count FROM knowledge_bases WHERE kb_id=?`, privKB).Scan(&privMembers)
+	okAssert(privMembers == 2, "私有库授权后 member_count=2（admin owner + user 授权）")
+
+	// (c) 管理授权（8.3）：普通用户不可授予/管理他人库
+	okAssert(knowledge.GrantKB(g, normal, privKB, "user", adminID, "view") == knowledge.ErrForbidden, "普通用户对他人库授予被拒（非库管理员）")
+	canA, _ := knowledge.CanManageKB(g, admin, privKB)
+	canN, _ := knowledge.CanManageKB(g, normal, privKB)
+	okAssert(canA && !canN, "库管理判定：平台管理员/创建人可、仅持 view 的普通用户不可")
+	// 8.3：普通用户越权授予被拒须写 audit_logs(失败)（绕过 UI 直接调用留痕）
+	var denyAudit int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND actor_id=? AND action_type='kb_acl_grant' AND target_id=? AND result='失败'`, tenantID, userID, privKB).Scan(&denyAudit)
+	okAssert(denyAudit >= 1, "普通用户越权授予被拒并写 audit_logs(失败)（8.3 绕过 UI 调用留痕）")
+	// 库管理员（per-kb manage 授予）可上传到自管库（kb-import「库管理员上传自管库」）
+	canUpView, _ := knowledge.CanUploadToKB(g, normal, privKB)
+	okAssert(!canUpView, "仅持 view 的普通用户不可上传到该库")
+	_ = knowledge.GrantKB(g, admin, privKB, "user", userID, "manage")
+	canUpMgr, _ := knowledge.CanUploadToKB(g, normal, privKB)
+	okAssert(canUpMgr, "授予 per-kb manage 后为库管理员、可上传到自管库")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 foundation + PR2 导入管线 + PR3wA 问答 + PR3wB 搜索）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL）全部通过")
 }
 
 // makeKBDoc 造一个属某 KB 的正式文档：documents(app_source=kb)+version+2 chunk（source_type=document，待索引就绪标 kb）

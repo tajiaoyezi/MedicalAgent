@@ -90,8 +90,9 @@ func ListVisible(db *gorm.DB, u auth.AuthUser) ([]Card, error) {
 	q := selectCols + ` WHERE kb.tenant_id = ?`
 	args := []any{u.TenantID}
 	if !isPlatformAdmin(u) {
-		q += ` AND (kb.is_seed = TRUE OR kb.created_by = ?)`
-		args = append(args, u.UserID)
+		// 可见 = 预设库 ∪ 自建库 ∪ 经文档级授权可见的私有库（§11.4「被授权私有库」，ACL 经 document_permissions 聚合）
+		q += ` AND (kb.is_seed = TRUE OR kb.created_by = ? OR ` + docGrantVisibleKBSubquery() + `)`
+		args = append(args, u.UserID, u.TenantID, u.UserID, roleSlugsForIN(u), deptForMatch(u))
 	}
 	q += orderBy
 	var rows []kbRow
@@ -115,8 +116,8 @@ func Get(db *gorm.DB, u auth.AuthUser, kbID string) (*Card, error) {
 		return nil, ErrNotFound
 	}
 	r := rows[0]
-	if !isPlatformAdmin(u) && !r.IsSeed && (r.CreatedBy == nil || *r.CreatedBy != u.UserID) {
-		return nil, ErrNotFound
+	if !isPlatformAdmin(u) && !r.IsSeed && (r.CreatedBy == nil || *r.CreatedBy != u.UserID) && !hasKBDocGrant(db, u, kbID) {
+		return nil, ErrNotFound // 非管理员/非预设/非创建人/无文档级授权 → 不可见（不泄露存在性）
 	}
 	card := toCard(u, r)
 	return &card, nil
