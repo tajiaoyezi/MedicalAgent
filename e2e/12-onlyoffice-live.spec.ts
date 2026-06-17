@@ -23,7 +23,7 @@ async function uploadFixtureDocx(request: APIRequestContext): Promise<string> {
 test.describe("c05 真实 ONLYOFFICE 写回链路（15.1，DS_LIVE）", () => {
   test("挂载→读取→replaceSelection→saveDocument→保存回调落 ai_writeback 版本", async ({ page, request }) => {
     test.skip(!process.env.DS_LIVE, "需 onlyoffice DS 容器 + dev:web --host；以 DS_LIVE=1 开启");
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
 
     const documentId = await uploadFixtureDocx(request);
     await page.goto(`/editor/${documentId}`);
@@ -53,7 +53,10 @@ test.describe("c05 真实 ONLYOFFICE 写回链路（15.1，DS_LIVE）", () => {
       await b.replaceSelection("【AI 润色】真实写回插入的新正文。", "");
     });
     // 等改动经协同同步到 DS（否则随后 forcesave 见不到改动、error=4 不落版本）。
-    await page.waitForTimeout(4000);
+    // 实测 4s 偏短：headless 经 __medbridge 的 replaceSelection 改动来不及同步进 DS，
+    // forcesave 取 error=4 空转，版本仅靠浏览器断连后的 DS 闲置保存（~90s）兜底而错过轮询；
+    // 放宽到 15s 后 forcesave 即时落版本（arm→保存回调同秒返回），跑时反而从 ~93s 降到 ~21s。
+    await page.waitForTimeout(15000);
     // saveDocument → 宿主 arm 写回意图 → 后端触发 DS forcesave(status=6)，落 ai_writeback 版本。
     await page.evaluate(async () => {
       const b = (window as unknown as { __medbridge?: { saveDocument: (s?: string) => Promise<unknown> } }).__medbridge!;
@@ -69,7 +72,7 @@ test.describe("c05 真实 ONLYOFFICE 写回链路（15.1，DS_LIVE）", () => {
           const json = (await resp.json()) as { versions?: Array<{ source: string }> };
           return (json.versions ?? []).some((v) => v.source === "ai_writeback");
         },
-        { timeout: 90_000, intervals: [2000, 3000, 5000] },
+        { timeout: 150_000, intervals: [2000, 3000, 5000] },
       )
       .toBe(true);
   });
