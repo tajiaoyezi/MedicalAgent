@@ -19,6 +19,7 @@
     "smoke:c03": "cd apps/server && go run ./cmd/smoke/c03",
     "smoke:c04": "cd apps/server && go run ./cmd/smoke/c04",
     "smoke:c05": "cd apps/server && go run ./cmd/smoke/c05",
+    "smoke:c06": "cd apps/server && go run ./cmd/smoke/c06",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report e2e/.report",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.json"

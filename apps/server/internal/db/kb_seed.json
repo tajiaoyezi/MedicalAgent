@@ -1,0 +1,15 @@
+[
+  { "name": "医院制度与流程知识库", "description": "院内管理制度、行政流程、岗位职责与办事指南的权威汇编。", "data_source": "院内制度文件" },
+  { "name": "临床指南与专家共识知识库", "description": "各学科临床诊疗指南、专家共识与循证推荐的结构化检索库。", "data_source": "临床指南/专家共识" },
+  { "name": "药品说明书与用药安全知识库", "description": "药品说明书、用药禁忌、相互作用与用药安全提示。", "data_source": "药品说明书" },
+  { "name": "医疗质量与质控规范知识库", "description": "医疗质量管理规范、质控指标与持续改进文档。", "data_source": "质控规范" },
+  { "name": "感染防控知识库", "description": "医院感染预防与控制制度、操作规范与监测要求。", "data_source": "院感防控规范" },
+  { "name": "护理规范知识库", "description": "临床护理操作规范、护理常规与分级护理标准。", "data_source": "护理规范" },
+  { "name": "医学文献与 PubMed 精选知识库", "description": "精选医学文献与 PubMed/PMC 开放获取文献的可溯源库。", "data_source": "PubMed/PMC 文献" },
+  { "name": "科研项目与论文写作知识库", "description": "科研项目申报、论文写作模板与学术规范资料。", "data_source": "科研/写作资料" },
+  { "name": "医学检查检验知识库", "description": "检验检查项目说明、参考区间与结果解读资料。", "data_source": "检查检验资料" },
+  { "name": "临床路径与病例资料知识库", "description": "标准临床路径与脱敏病例资料的检索与问答库。", "data_source": "临床路径/病例" },
+  { "name": "患者宣教知识库", "description": "面向患者的疾病宣教、康复指导与健康教育材料。", "data_source": "患者宣教材料" },
+  { "name": "医保与病案编码知识库", "description": "医保政策、DRG/DIP 与病案首页编码规则资料。", "data_source": "医保/编码规则" },
+  { "name": "行政办公与会议资料知识库", "description": "行政办公模板、会议纪要与通用文书资料。", "data_source": "行政办公资料" }
+]

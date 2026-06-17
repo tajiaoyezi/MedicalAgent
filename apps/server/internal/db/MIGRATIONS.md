@@ -11,7 +11,8 @@
 | 005 | c03-model-and-parse | `document_parse_jobs` / `document_visual_parse_results` + `document_event_consumptions`（消费侧记账，非 §18） |
 | 006 | c03-model-and-parse | `document_chunks`（含 `chunk_acl` 物理列）/ `embeddings`（`chunk_id` 外键回连，无 `tenant_id` 列） |
 | 007 | c04-aimed-rag-citation | `conversations` / `messages` / `citations` / `agent_runs` / `agent_steps` / `tool_calls` / `feedbacks`（唯一建表 owner=c04；`feedbacks.subject_id` 多态无 FK；`agent_checkpoints` 不建） |
-| 008+ | c05-ai-panel-recent-tasks 起 | （**必须 ≥008**，排在 007 之后） |
+| 008 | c05-ai-panel-recent-tasks | `writeback_confirmations`（新建，owner=c05）+ `recent_tasks` 补列（ALTER） |
+| 009 | c06-knowledge-admin | `knowledge_bases` / `kb_documents` / `source_whitelist_rules`（唯一建表 owner=c06，§18 命名；仅消费不重建 c01/c03/c04/c09 表） |
 
 ## 横切契约
 
