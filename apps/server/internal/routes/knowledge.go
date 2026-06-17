@@ -24,6 +24,14 @@ func kbStatus(err error) (int, string) {
 		return http.StatusConflict, "同名知识库已存在"
 	case errors.Is(err, knowledge.ErrInvalidInput):
 		return http.StatusBadRequest, "参数不合法"
+	case errors.Is(err, knowledge.ErrRejectedSource):
+		return http.StatusForbidden, "来源被红线禁止（未授权商业库/镜像站/下载链接）"
+	case errors.Is(err, knowledge.ErrNotAuthorized):
+		return http.StatusForbidden, "来源未授权，仅可临时预览、不可写入正式公共库"
+	case errors.Is(err, knowledge.ErrMissingMeta):
+		return http.StatusBadRequest, "缺少必录元数据字段，无法完成入库"
+	case errors.Is(err, knowledge.ErrRedactionBlock):
+		return http.StatusForbidden, "脱敏门禁拦截"
 	default:
 		return http.StatusInternalServerError, "服务器错误"
 	}
@@ -117,6 +125,105 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB) {
 			ActionType: "kb_ranking_update", TargetType: audit.P("knowledge_base"), TargetID: audit.P(c.Param("id")),
 			Result: "成功",
 		})
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	// ── 受控导入管线（四段式 + 三态授权状态机）──
+	// 预览（来源适配器 → staging）：经授权闸门定状态、落 staging 行（不进正式索引）。
+	r.POST("/api/kb/:id/import", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			SourceType      string `json:"sourceType"`
+			SourceURL       string `json:"sourceUrl"`
+			Title           string `json:"title"`
+			AdminAuthorized bool   `json:"adminAuthorized"`
+			DocumentID      string `json:"documentId"`
+			PublicNetwork   bool   `json:"publicNetwork"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		kbDocID, err := knowledge.PreviewImport(db, user, knowledge.ImportRequest{
+			KBID: c.Param("id"), SourceType: body.SourceType, SourceURL: body.SourceURL, Title: body.Title,
+			AdminAuthorized: body.AdminAuthorized, DocumentID: body.DocumentID, PublicNetwork: body.PublicNetwork,
+		})
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"kbDocumentId": kbDocID})
+	})
+
+	// 列出某库导入记录（含 staging 与正式，解析/索引状态可追踪）。
+	r.GET("/api/kb/:id/documents", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		if _, err := knowledge.Get(db, user, c.Param("id")); err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		var rows []struct {
+			KBDocumentID        string `gorm:"column:kb_document_id" json:"kbDocumentId"`
+			Title               string `gorm:"column:title" json:"title"`
+			SourceType          string `gorm:"column:source_type" json:"sourceType"`
+			SourceURL           string `gorm:"column:source_url" json:"sourceUrl"`
+			AuthorizationStatus string `gorm:"column:authorization_status" json:"authorizationStatus"`
+			IsStaging           bool   `gorm:"column:is_staging" json:"isStaging"`
+			ParseStatus         string `gorm:"column:parse_status" json:"parseStatus"`
+			IndexStatus         string `gorm:"column:index_status" json:"indexStatus"`
+		}
+		_ = db.Raw(
+			`SELECT kb_document_id, title, source_type, source_url, authorization_status, is_staging, parse_status, index_status
+			 FROM kb_documents WHERE tenant_id = ? AND kb_id = ? ORDER BY imported_at DESC`,
+			user.TenantID, c.Param("id"),
+		).Scan(&rows).Error
+		c.JSON(http.StatusOK, gin.H{"documents": rows})
+	})
+
+	// 入库前预览确认（人工确认链路）：仅 authorized + 必录字段非空可入正式库。
+	r.POST("/api/kb-documents/:kbDocId/confirm", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		if err := knowledge.ConfirmImport(db, user, c.Param("kbDocId")); err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	// 取消预览：丢弃 staging 资料，不落正式库、不建索引。
+	r.POST("/api/kb-documents/:kbDocId/cancel", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		if err := knowledge.CancelImport(db, user, c.Param("kbDocId")); err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	// 管理员触发重建索引：产生 manual_reindex document_events（c03 消费重解析），收尾走同一索引就绪路径。
+	r.POST("/api/kb-documents/:kbDocId/reindex", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		if err := knowledge.Reindex(db, user, c.Param("kbDocId")); err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 }
