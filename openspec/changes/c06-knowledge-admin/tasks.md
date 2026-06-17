@@ -15,7 +15,7 @@
 ## 3. 知识库首页卡片与排序
 
 - [x] 3.1 实现卡片 9 字段查询输出（名称/ID/创建人/简介/成员人数/文档数量/更新时间/数据源/置顶状态），验证：单库卡片同时返回全部 9 字段（对应「卡片展示全部规定字段」Scenario）。
-- [ ] 3.2 实现 `document_count`（按 `index_status=indexed` 且当前 `tenant_id` 可见范围计数）与 `member_count`（数据源 = 该知识库 ACL/`document_permissions` 授权用户去重计数，不依赖独立 `kb_members` 表）物化计数，`document_count` 的刷新以 c06 消费 c03「索引就绪」事件（见 5.4a，置 `index_status=indexed`）为唯一触发源、随该事件与成员（知识库授权）变更事务内增量更新，验证：收到「索引就绪」事件后卡片文档数量自增、`member_count` 等于该库授权用户去重数、不实时全表聚合（对应「文档数量按可见范围计数」「成员人数取知识库授权用户去重计数」「入库或更新后刷新更新时间」Scenario、D2、Decision E）。
+- [x] 3.2 实现 `document_count`（按 `index_status=indexed` 且当前 `tenant_id` 可见范围计数）与 `member_count`（数据源 = 该知识库 ACL/`document_permissions` 授权用户去重计数，不依赖独立 `kb_members` 表）物化计数，`document_count` 的刷新以 c06 消费 c03「索引就绪」事件（见 5.4a，置 `index_status=indexed`）为唯一触发源、随该事件与成员（知识库授权）变更事务内增量更新，验证：收到「索引就绪」事件后卡片文档数量自增、`member_count` 等于该库授权用户去重数、不实时全表聚合（对应「文档数量按可见范围计数」「成员人数取知识库授权用户去重计数」「入库或更新后刷新更新时间」Scenario、D2、Decision E）。
 - [x] 3.3 实现卡片更新时间在新增/更新/删除文档完成后同步刷新，验证：完成一次入库后该库 `updated_at` 与文档数量同步刷新（对应「入库或更新后刷新更新时间」Scenario）。
 - [x] 3.4 在 SQL 层实现确定性多级排序 `is_pinned DESC, manual_weight DESC NULLS LAST, updated_at DESC, created_at DESC`，验证：置顶库最前、非置顶按权重降序、同权重按更新时间倒序、无配置回退创建时间倒序四级规则与分页稳定（对应 §24.3「配置排序权重和置顶」、§11.3 四个排序 Scenario、D2）。
 - [x] 3.5 实现管理员配置「置顶/手动权重」入口（仅平台管理员或对应库管理员），验证：变更置顶或权重后列表顺序即时重算（对应 §24.3「管理员可配置排序权重和置顶」、「置顶库排在最前」Scenario、§11.5）。
@@ -63,11 +63,11 @@
 ## 8. 终端用户功能隔离与权限过滤
 
 - [ ] 8.1 实现终端用户默认隐藏管理类入口（导入知识库/新建知识库/公开知识/我管理的/我加入的/历史会话侧边栏），验证：普通用户首页不展示上述入口（对应「终端用户功能隔离」「普通用户隐藏管理类入口」Scenario、§11.4）。
-- [ ] 8.2 实现普通用户可见 kb 集合 = 预设公共库 ∪ 被授权私有库，不返回其它租户或未授权私有库，验证：普通用户列表仅含预设库与授权私有库（对应「普通用户仅见预设库与授权私有库」Scenario）。
-- [ ] 8.3 实现知识库级 ACL（读取/问答/上传导入/管理四类权限）与绕过 UI 的接口级鉴权，「读取/问答/上传导入/管理」四类为 PRD §19.1 per-kb 资源级 ACL 能力（落 `document_permissions` / 知识库 ACL 授予记录），MUST 锚定 c01 auth-rbac 角色/权限点唯一真值、MUST NOT 在 c01 `permissions` 表自造 `kb:*` 平台级权限点：「库管理员身份」= 在某具体知识库持有管理级 per-kb ACL 授予，普通 c01 角色（如 `user`）不自动等同库管理员、「平台管理员」=c01 `admin` 角色，验证：普通用户直接调用无权管理接口被拒并写 `audit_logs`、库管理员越界管理被拒、仅持普通 c01 角色而无该库管理级 ACL 授予者不被判为库管理员（对应「知识库级权限」「库管理员身份取自 per-kb 管理级 ACL 授予而非新全局角色」「普通用户绕过 UI 直接调用被拒绝」「知识库管理员仅能管理自己的库」Scenario、F10 角色锚定）。
-- [ ] 8.4 导入侧物化两维 ACL（document_acl 与 chunk_acl 分别落点，不混为单一 acl）：写入时把 `tenant_id`/`kb_id` 落 `kb_documents`、`document_acl` 落 `document_permissions`、`chunk_acl` 覆盖值写入 c03 所建 `document_chunks.chunk_acl` 列（c06 仅写值不建列；以 c03 新增的 `chunk_acl` 列为前置依赖），验证：入库后 document 级与 chunk 级两维过滤条件均已分别物化、`chunk_acl` 列名与 c03/c04 一致（对应 §11.9、Decision A、D6 写入侧）。
-- [ ] 8.5 读取侧把 `user_id`/`role`/可见 `kb_id` 集合以及基于 `document_permissions` 预计算的可见 `document_id` 集合下推到 c04 召回前权限过滤步骤（非应用层后置裁剪），由 c04 rag-retrieval 执行 document_acl 与 chunk_acl 两维过滤。验收前置：依赖 c04 rag-retrieval 已把单一 acl 扩展为可区分 document_acl/chunk_acl 两维过滤（接受 c06 注入的可见 document 集合），否则 8.6 的 document 级越权用例不可验。验证：六维（tenant_id/kb_id/user_id/role/document_acl/chunk_acl）任一不满足的内容不进候选/不参与 rerank/不进引用与来源列表（对应「RAG 权限过滤维度」全部 Scenario、§11.9、D6 读取侧、Decision D）。
-- [ ] 8.6 验证 document 级与 chunk 级两维 ACL 与跨租户隔离：用户无 document_acl 的整篇文档不进候选、更严格 chunk_acl 的 chunk 不注入答案上下文、跨租户检索不返回他租内容，验证：越权 document 与越权 chunk 均不出现在答案/引用/来源（对应「document/chunk 级 ACL 隔离」「跨租户检索被隔离」「跨租户访问被隔离」Scenario、Decision D）。
+- [x] 8.2 实现普通用户可见 kb 集合 = 预设公共库 ∪ 被授权私有库，不返回其它租户或未授权私有库，验证：普通用户列表仅含预设库与授权私有库（对应「普通用户仅见预设库与授权私有库」Scenario）。
+- [x] 8.3 实现知识库级 ACL（读取/问答/上传导入/管理四类权限）与绕过 UI 的接口级鉴权，「读取/问答/上传导入/管理」四类为 PRD §19.1 per-kb 资源级 ACL 能力（落 `document_permissions` / 知识库 ACL 授予记录），MUST 锚定 c01 auth-rbac 角色/权限点唯一真值、MUST NOT 在 c01 `permissions` 表自造 `kb:*` 平台级权限点：「库管理员身份」= 在某具体知识库持有管理级 per-kb ACL 授予，普通 c01 角色（如 `user`）不自动等同库管理员、「平台管理员」=c01 `admin` 角色，验证：普通用户直接调用无权管理接口被拒并写 `audit_logs`、库管理员越界管理被拒、仅持普通 c01 角色而无该库管理级 ACL 授予者不被判为库管理员（对应「知识库级权限」「库管理员身份取自 per-kb 管理级 ACL 授予而非新全局角色」「普通用户绕过 UI 直接调用被拒绝」「知识库管理员仅能管理自己的库」Scenario、F10 角色锚定）。
+- [x] 8.4 导入侧物化两维 ACL（document_acl 与 chunk_acl 分别落点，不混为单一 acl）：写入时把 `tenant_id`/`kb_id` 落 `kb_documents`、`document_acl` 落 `document_permissions`、`chunk_acl` 覆盖值写入 c03 所建 `document_chunks.chunk_acl` 列（c06 仅写值不建列；以 c03 新增的 `chunk_acl` 列为前置依赖），验证：入库后 document 级与 chunk 级两维过滤条件均已分别物化、`chunk_acl` 列名与 c03/c04 一致（对应 §11.9、Decision A、D6 写入侧）。
+- [x] 8.5 读取侧把 `user_id`/`role`/可见 `kb_id` 集合以及基于 `document_permissions` 预计算的可见 `document_id` 集合下推到 c04 召回前权限过滤步骤（非应用层后置裁剪），由 c04 rag-retrieval 执行 document_acl 与 chunk_acl 两维过滤。验收前置：依赖 c04 rag-retrieval 已把单一 acl 扩展为可区分 document_acl/chunk_acl 两维过滤（接受 c06 注入的可见 document 集合），否则 8.6 的 document 级越权用例不可验。验证：六维（tenant_id/kb_id/user_id/role/document_acl/chunk_acl）任一不满足的内容不进候选/不参与 rerank/不进引用与来源列表（对应「RAG 权限过滤维度」全部 Scenario、§11.9、D6 读取侧、Decision D）。
+- [x] 8.6 验证 document 级与 chunk 级两维 ACL 与跨租户隔离：用户无 document_acl 的整篇文档不进候选、更严格 chunk_acl 的 chunk 不注入答案上下文、跨租户检索不返回他租内容，验证：越权 document 与越权 chunk 均不出现在答案/引用/来源（对应「document/chunk 级 ACL 隔离」「跨租户检索被隔离」「跨租户访问被隔离」Scenario、Decision D）。
 
 ## 9. 审计、问答日志与最近任务
 

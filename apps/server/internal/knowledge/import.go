@@ -308,6 +308,14 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	if err := db.Exec(`UPDATE kb_documents SET is_staging = FALSE, updated_at = NOW() WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID).Error; err != nil {
 		return err
 	}
+	// 物化 document_acl（8.4）：seed 公共库授全角色 view、传播 KB 既有授权到新文档、刷新 member_count。
+	if r.DocumentID != nil && *r.DocumentID != "" {
+		var seedRows []struct {
+			IsSeed bool `gorm:"column:is_seed"`
+		}
+		_ = db.Raw(`SELECT is_seed FROM knowledge_bases WHERE kb_id = ? AND tenant_id = ?`, r.KBID, u.TenantID).Scan(&seedRows)
+		_ = applyImportGrants(db, u.TenantID, r.KBID, *r.DocumentID, len(seedRows) > 0 && seedRows[0].IsSeed)
+	}
 	// 已落盘文档 → 入队 c03 解析（worker 解析/分块/向量化后发「索引就绪」事件，由 c06 索引消费方置 indexed + 刷新计数）。
 	if r.DocumentID != nil && *r.DocumentID != "" {
 		_ = db.Exec(`UPDATE kb_documents SET parse_status = 'pending', index_status = 'pending' WHERE kb_document_id = ?`, kbDocID).Error

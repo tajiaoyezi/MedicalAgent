@@ -131,6 +131,27 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragE
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
+	// 知识库级 ACL 授予（§19.1，仅平台管理员或库管理员）：把 (principal, level) 应用到该库当前正式文档的
+	// document_permissions（KB 级 ACL = 文档级授权聚合），授予后刷新 member_count。
+	r.POST("/api/kb/:id/grant", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			PrincipalType string `json:"principalType"`
+			PrincipalID   string `json:"principalId"`
+			Level         string `json:"level"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		if err := knowledge.GrantKB(db, user, c.Param("id"), body.PrincipalType, body.PrincipalID, body.Level); err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
 	// ── 受控导入管线（四段式 + 三态授权状态机）──
 	// 预览（来源适配器 → staging）：经授权闸门定状态、落 staging 行（不进正式索引）。
 	r.POST("/api/kb/:id/import", func(c *gin.Context) {
