@@ -43,6 +43,8 @@ type AnswerRequest struct {
 	// ExistingUserMessageID 非空时复用该 user 消息为新答案的 parent（重新生成场景），
 	// 不再新插一条重复的 user 消息——保证同一提问的多个答案版本共享同一 parent（版本链）。
 	ExistingUserMessageID string
+	// KBIDs：知识库问答（c06 kb_qa）选定的 kb_id 数据源范围；AIMed 不设（空）。透传至 RAG 检索数据源选择。
+	KBIDs []string
 }
 
 // AnswerStats 检索统计（§5.2 找到 N 篇、M 篇重点参考、思考 S 秒）。
@@ -109,6 +111,7 @@ func (s *Service) Answer(db *gorm.DB, req AnswerRequest) (AnswerResult, error) {
 		UploadDocIDs:    uploadDocs,
 		CurrentDocID:    req.CurrentDocID,
 		ConversationID:  conv.ConversationID,
+		KBIDs:           req.KBIDs,
 	})
 	if err != nil {
 		return AnswerResult{}, err

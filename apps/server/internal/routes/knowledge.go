@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"medoffice/server/internal/aimed"
 	"medoffice/server/internal/audit"
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/httpx"
@@ -37,9 +38,9 @@ func kbStatus(err error) (int, string) {
 	}
 }
 
-// RegisterKnowledge 挂载 c06 知识库管理路由（PR1：首页卡片/排序/创建/置顶·权重）。
-// 检索问答、导入管线、ACL 等端点由后续 PR 在本文件扩展。
-func RegisterKnowledge(r *gin.Engine, db *gorm.DB) {
+// RegisterKnowledge 挂载 c06 知识库管理 + 受控导入 + 检索问答路由。
+// 检索问答（/api/kb-qa/*）复用 c04 aimed.Service.Answer 内核（KB 作为数据源 + kb_id 选择）。
+func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service) {
 	// 知识库列表（已按确定性多级排序）；canCreate 决定前端是否展示「创建知识库」管理入口（§11.4 终端用户隔离）。
 	r.GET("/api/kb", func(c *gin.Context) {
 		user, ok := auth.Require(c)
@@ -225,5 +226,59 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	// ── 知识库问答（§11.7）：/api/kb-qa/* 独立树，复用 c04 aimed.Answer（检索→rerank→生成带引用答案→
+	// 高风险经 c05 message 级确认前置→§19.3 免责声明/草稿/无召回不臆造），KB 作数据源 + kb_id 选择 ──
+	r.POST("/api/kb-qa/conversations", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			Title string `json:"title"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		convID, err := knowledge.StartKBQA(db, user, body.Title)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"conversationId": convID})
+	})
+
+	r.POST("/api/kb-qa/conversations/:id/ask", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			KBIds []string `json:"kbIds"`
+			Query string   `json:"query"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		res, err := knowledge.AskKB(db, aimedSvc, user, c.Param("id"), body.KBIds, body.Query)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, res)
+	})
+
+	// 会话恢复回源（§6.6 由 c05 最近任务恢复编排消费）：取 kb_qa 会话 + 消息。
+	r.GET("/api/kb-qa/conversations/:id", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		conv, err := aimed.GetConversation(db, user.TenantID, user.UserID, c.Param("id"))
+		if err != nil || conv.Module != aimed.ModuleKBQA {
+			httpx.Fail(c, 404, "会话不存在")
+			return
+		}
+		msgs, _ := aimed.ListMessages(db, user.TenantID, conv.ConversationID)
+		c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": msgs})
 	})
 }

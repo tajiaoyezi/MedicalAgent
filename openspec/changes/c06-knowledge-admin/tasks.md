@@ -44,19 +44,19 @@
 
 ## 6. 检索问答接入 c04（知识库作为数据源）
 
-- [ ] 6.1 把知识库注册为 c04 §16.2 检索流程的数据源类别，前置「数据源选择 = 选定的一个或多个 kb_id」，验证：可指定单/多 kb_id 进入 c04 检索流程（对应 §24.3「支持跨库检索」、D5）。
+- [x] 6.1 把知识库注册为 c04 §16.2 检索流程的数据源类别，前置「数据源选择 = 选定的一个或多个 kb_id」，验证：可指定单/多 kb_id 进入 c04 检索流程（对应 §24.3「支持跨库检索」、D5）。
 - [ ] 6.2 实现全局搜索三模式（关键词=BM25、语义=向量、混合=合并去重+rerank）复用 c04 内核，验证：三模式分别返回 BM25 命中/语义相关/合并去重结果（对应「全局搜索」前三 Scenario）。
 - [ ] 6.3 实现多维筛选（按知识库/文档类型/更新时间/来源/权限）作为检索前置条件，其中「文档类型」维取自 `kb_documents.document_id` 关联 c01 `documents` 的文件类型（pdf/ofd/doc/docx/xlsx/xls/ppt/pptx/png/jpg 等，§8.6.4/§8.6.5）、「来源」维取自 `source_type`（来源类型），两维用不同承载字段区分、MUST NOT 用同一字段兼表，验证：设置筛选后仅返回同时满足全部条件的结果，且按「文档类型=docx」与按「来源=PubMed」分别命中文件类型字段与来源类型字段、两维不混同（对应 §11.6、「多维筛选生效」「按文档类型筛选命中文件类型字段」「按来源筛选命中来源类型字段」Scenario、F11）。
-- [ ] 6.4 实现多库选择知识库问答流程（检索 chunk → rerank → 生成答案 → 标注引用 → 展示来源文档）复用 c04，验证：勾选多库问答返回带引用与来源文档的答案（对应 §24.3「支持知识库问答」、「跨多库问答」Scenario、§11.7）。
-- [ ] 6.5 实现答案医疗免责声明与「草稿/辅助建议」默认标记，及无召回时不臆造（提示未找到可溯源依据），验证：答案带免责声明并标草稿、无相关 chunk 时不编造无引用建议（对应「答案展示免责声明并标注草稿」「无依据时不臆造答案」Scenario、红线）。
+- [x] 6.4 实现多库选择知识库问答流程（检索 chunk → rerank → 生成答案 → 标注引用 → 展示来源文档）复用 c04，验证：勾选多库问答返回带引用与来源文档的答案（对应 §24.3「支持知识库问答」、「跨多库问答」Scenario、§11.7）。
+- [x] 6.5 实现答案医疗免责声明与「草稿/辅助建议」默认标记，及无召回时不臆造（提示未找到可溯源依据），验证：答案带免责声明并标草稿、无相关 chunk 时不编造无引用建议（对应「答案展示免责声明并标注草稿」「无依据时不臆造答案」Scenario、红线）。
 - [ ] 6.6 知识库问答模型 fallback 降级路径：复用 c04/c03 模型 Provider（公网→私有化）fallback，验证：无公网时由私有化模型生成带引用答案（对应 D7、rules「外部接入须覆盖离线/私有化降级」）。
 - [ ] 6.7 问答生成调用公网模型前消费 c09 redaction-gateway 脱敏门禁（与 kb-import 导入侧门禁为两个独立执行点）：用户问题/检索注入上下文经 c09 识别脱敏后才调公网模型；识别失败/置信度不足/服务不可用/门禁未接入时禁止调用公网模型并切 c03 私有化模型，调用留痕写 `audit_logs`、脱敏事件由 c09 在 c03 公网出口写 `privacy_redaction_events`。本期默认公网关闭、真实判定接入与公网放开随 c09 落地验收，验证：含 PHI 问题先脱敏再调公网模型、识别不可用时不调用公网且切私有化（对应「知识库问答生成调用公网模型前 PHI/PII 脱敏门禁」全部 Scenario、Decision D、§19.4、红线）。
-- [ ] 6.8 知识库问答（`module=kb_qa`）答案下发前接入 c05 ai-writeback-confirmation 的 message 级高风险确认链路（前置消费、不自建判定）：答案下发前交由 c05 服务端 `risk_type` 分类器判定，命中高风险（诊疗/用药/医嘱/临床文书/患者个体信息）时以 `message_id` 为键落 c05 所建 `writeback_confirmations`，按 `confirmed_role∈{doctor,reviewer}` 裁决，普通用户只能生成草稿/提交审核、MUST NOT 完成最终确认与下发；`risk_type` 判定与确认记录 owner 归 c05，c06 仅触发链路并记录问答行为到 `audit_logs`；该链路的 message 级生产方枚举（AIMed 答案 / 知识库问答 kb_qa / 医学翻译文书三类）以 c05/c09 owner 枚举为唯一真值，c06（kb_qa）仅作 message 级生产方挂载、以 owner 枚举为准，验证：高风险 kb_qa 答案普通用户不能直接下发、医生/审核角色确认后方可下发、确认记录由 c05 以 message_id 落 `writeback_confirmations`（对应「知识库问答高风险答案下发前的人工确认」全部 Scenario、Decision B、§19.2）。
+- [x] 6.8 知识库问答（`module=kb_qa`）答案下发前接入 c05 ai-writeback-confirmation 的 message 级高风险确认链路（前置消费、不自建判定）：答案下发前交由 c05 服务端 `risk_type` 分类器判定，命中高风险（诊疗/用药/医嘱/临床文书/患者个体信息）时以 `message_id` 为键落 c05 所建 `writeback_confirmations`，按 `confirmed_role∈{doctor,reviewer}` 裁决，普通用户只能生成草稿/提交审核、MUST NOT 完成最终确认与下发；`risk_type` 判定与确认记录 owner 归 c05，c06 仅触发链路并记录问答行为到 `audit_logs`；该链路的 message 级生产方枚举（AIMed 答案 / 知识库问答 kb_qa / 医学翻译文书三类）以 c05/c09 owner 枚举为唯一真值，c06（kb_qa）仅作 message 级生产方挂载、以 owner 枚举为准，验证：高风险 kb_qa 答案普通用户不能直接下发、医生/审核角色确认后方可下发、确认记录由 c05 以 message_id 落 `writeback_confirmations`（对应「知识库问答高风险答案下发前的人工确认」全部 Scenario、Decision B、§19.2）。
 
 ## 7. 溯源与引用定位
 
 - [ ] 7.1 导入入库时把 §16.3 chunk 元数据（source_type/source_title/source_url/pubmed_id/doi/journal/year/section/page/paragraph_index/chunk_text）正确写入 chunk，验证：演示库 chunk 元数据齐备可支撑段落级溯源（对应 D5、§16.3）。
-- [ ] 7.2 实现答案引用溯源到 知识库/源文档/章节/页码/段落/chunk/原文片段（复用 c04 `citations`），验证：查看任一引用可定位到上述七级（对应 §24.3「答案可溯源到段落」、「溯源到段落级」Scenario、§11.8）。
+- [x] 7.2 实现答案引用溯源到 知识库/源文档/章节/页码/段落/chunk/原文片段（复用 c04 `citations`），验证：查看任一引用可定位到上述七级（对应 §24.3「答案可溯源到段落」、「溯源到段落级」Scenario、§11.8）。
 - [ ] 7.3 实现引用可点击跳转到来源文档位置，验证：点击引用跳转到对应来源位置且引用可点击率 ≥95%（对应「引用可点击跳转」Scenario、§20.3 指标）。
 - [ ] 7.4 对知识库问答测试集运行引用定位验收，验证：引用源定位成功率 ≥90% 且页码误差 ≤1 页（对应「引用定位准确率达标」Scenario）。
 
@@ -74,7 +74,7 @@
 - [ ] 9.1 将上传/公网导入/授权确认/预览入库/拒绝·阻断行为写入 `audit_logs`（操作人、tenant_id、kb_id、来源、授权确认人、白名单规则 ID），含被红线阻断事件，验证：一次导入与一次被阻断导入均留痕（对应「导入与授权行为审计留痕」全部 Scenario）。
 - [ ] 9.2 将检索与问答行为写入 `audit_logs` 并生成问答日志（用户、tenant_id、所选 kb_id、查询、返回引用、时间），验证：完成问答后审计与问答日志均生成（对应「检索与问答行为审计」「问答写入审计与问答日志」Scenario）。
 - [ ] 9.3 实现管理员在权限范围内查看问答日志，验证：管理员后台展示其权限内问答记录与对应引用来源（对应 §11.5「查看问答日志」、「管理员查看问答日志」Scenario）。
-- [ ] 9.4 知识库问答会话持久化与最近任务写入（c06 为知识库问答会话唯一写入方）：(a) 把会话/消息写入 c04 所建 `conversations`/`messages`，并通过 c04 的 `module`/`source` 两个独立维标记：`module=kb_qa`（机器枚举值，c04 owner 定义、取值域 {aimed, kb_qa}）、`source=「医疗知识库问答」`（§6.4 中文规范值），以区分 AIMed、按 tenant_id/user_id 隔离；(b) 向 c01 所建 `recent_tasks` 写一条 `source=医疗知识库问答`、`ref_type=conversation`、`ref_id=conversation_id` 的记录，以 `(ref_type,ref_id)` 为幂等键 upsert，验证：完成一次问答后会话落 conversations/messages 且 `module=kb_qa`、非 AIMed 模式（`module≠aimed`）、c05 可按 `module=kb_qa` 识别恢复、recent_tasks 出现该会话条目（source/ref 字段可观测）且可由 c05 按 ref_id 恢复（对应 §24.3「历史进入最近任务」、「问答历史进入最近任务」「知识库问答会话持久化到 conversations/messages」「知识库问答写入最近任务」Scenario、Decision B）。
+- [x] 9.4 知识库问答会话持久化与最近任务写入（c06 为知识库问答会话唯一写入方）：(a) 把会话/消息写入 c04 所建 `conversations`/`messages`，并通过 c04 的 `module`/`source` 两个独立维标记：`module=kb_qa`（机器枚举值，c04 owner 定义、取值域 {aimed, kb_qa}）、`source=「医疗知识库问答」`（§6.4 中文规范值），以区分 AIMed、按 tenant_id/user_id 隔离；(b) 向 c01 所建 `recent_tasks` 写一条 `source=医疗知识库问答`、`ref_type=conversation`、`ref_id=conversation_id` 的记录，以 `(ref_type,ref_id)` 为幂等键 upsert，验证：完成一次问答后会话落 conversations/messages 且 `module=kb_qa`、非 AIMed 模式（`module≠aimed`）、c05 可按 `module=kb_qa` 识别恢复、recent_tasks 出现该会话条目（source/ref 字段可观测）且可由 c05 按 ref_id 恢复（对应 §24.3「历史进入最近任务」、「问答历史进入最近任务」「知识库问答会话持久化到 conversations/messages」「知识库问答写入最近任务」Scenario、Decision B）。
 
 ## 10. 主验收闭环（§24.3 端到端）
 
