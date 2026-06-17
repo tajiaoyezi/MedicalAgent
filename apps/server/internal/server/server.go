@@ -71,6 +71,6 @@ func New(d Deps) *gin.Engine {
 	knowledge.RegisterIndexConsumer(d.DB) // c06：同一事件知识库侧消费方（标记 kb chunk + 置 indexed + 刷新 document_count，须在 rag 之后）
 	aimedSvc := aimed.NewService(ragEngine)
 	routes.RegisterAIMed(r, d.DB, d.Storage, aimedSvc)
-	routes.RegisterKnowledge(r, d.DB, aimedSvc) // c06 知识库管理 + 检索问答（复用 c04 RAG/Answer 内核）
+	routes.RegisterKnowledge(r, d.DB, aimedSvc, ragEngine) // c06 知识库管理 + 搜索 + 检索问答（复用 c04 RAG/Answer 内核）
 	return r
 }

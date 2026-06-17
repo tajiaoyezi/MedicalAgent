@@ -3,6 +3,7 @@ package routes
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -12,6 +13,7 @@ import (
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/httpx"
 	"medoffice/server/internal/knowledge"
+	"medoffice/server/internal/rag"
 )
 
 // kbStatus 把知识库服务层语义错误映射为 HTTP 状态码与中文文案。
@@ -38,9 +40,9 @@ func kbStatus(err error) (int, string) {
 	}
 }
 
-// RegisterKnowledge 挂载 c06 知识库管理 + 受控导入 + 检索问答路由。
-// 检索问答（/api/kb-qa/*）复用 c04 aimed.Service.Answer 内核（KB 作为数据源 + kb_id 选择）。
-func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service) {
+// RegisterKnowledge 挂载 c06 知识库管理 + 受控导入 + 全局搜索 + 检索问答路由。
+// 搜索（/api/kb-search）与问答（/api/kb-qa/*）复用 c04 rag.Engine / aimed.Service 内核（KB 作数据源 + kb_id 选择）。
+func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragEng *rag.Engine) {
 	// 知识库列表（已按确定性多级排序）；canCreate 决定前端是否展示「创建知识库」管理入口（§11.4 终端用户隔离）。
 	r.GET("/api/kb", func(c *gin.Context) {
 		user, ok := auth.Require(c)
@@ -226,6 +228,39 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	// ── 全局搜索（§11.6）：三模式（keyword/semantic/hybrid）+ 多维筛选（知识库/文档类型/来源/更新时间），
+	// 复用 c04 rag.Retrieve（权限六维过滤召回前），kb_id 数据源选择按可见集合裁剪 ──
+	r.POST("/api/kb-search", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			KBIds        []string `json:"kbIds"`
+			Query        string   `json:"query"`
+			Mode         string   `json:"mode"`
+			DocType      string   `json:"docType"`
+			Source       string   `json:"source"`
+			UpdatedAfter string   `json:"updatedAfter"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		var f knowledge.SearchFilters
+		f.DocType = body.DocType
+		f.Source = body.Source
+		if body.UpdatedAfter != "" {
+			if t, err := time.Parse(time.RFC3339, body.UpdatedAfter); err == nil {
+				f.UpdatedAfter = &t
+			}
+		}
+		res, err := knowledge.KBSearch(db, ragEng, user, body.KBIds, body.Query, body.Mode, f)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, res)
 	})
 
 	// ── 知识库问答（§11.7）：/api/kb-qa/* 独立树，复用 c04 aimed.Answer（检索→rerank→生成带引用答案→
