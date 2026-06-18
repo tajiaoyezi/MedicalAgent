@@ -33,5 +33,9 @@ func main() {
 	if err := db.SeedKnowledgeBases(ctx, conn); err != nil {
 		log.Fatalf("seed knowledge bases: %v", err)
 	}
+	// 每个预置库装载 ≥1 份授权/开放演示文档（c06 tasks 2.3，c06 为唯一资产装载 owner）；幂等。
+	if err := db.SeedDemoDocuments(ctx, conn); err != nil {
+		log.Fatalf("seed demo documents: %v", err)
+	}
 	log.Println("migrate done")
 }
