@@ -71,9 +71,9 @@
 
 ## 9. 审计、问答日志与最近任务
 
-- [ ] 9.1 将上传/公网导入/授权确认/预览入库/拒绝·阻断行为写入 `audit_logs`（操作人、tenant_id、kb_id、来源、授权确认人、白名单规则 ID），含被红线阻断事件，验证：一次导入与一次被阻断导入均留痕（对应「导入与授权行为审计留痕」全部 Scenario）。
-- [ ] 9.2 将检索与问答行为写入 `audit_logs` 并生成问答日志（用户、tenant_id、所选 kb_id、查询、返回引用、时间），验证：完成问答后审计与问答日志均生成（对应「检索与问答行为审计」「问答写入审计与问答日志」Scenario）。
-- [ ] 9.3 实现管理员在权限范围内查看问答日志，验证：管理员后台展示其权限内问答记录与对应引用来源（对应 §11.5「查看问答日志」、「管理员查看问答日志」Scenario）。
+- [x] 9.1 将上传/公网导入/授权确认/预览入库/拒绝·阻断行为写入 `audit_logs`（操作人、tenant_id、kb_id、来源、授权确认人、白名单规则 ID），含被红线阻断事件，验证：一次导入与一次被阻断导入均留痕（对应「导入与授权行为审计留痕」全部 Scenario）。
+- [x] 9.2 将检索与问答行为写入 `audit_logs` 并生成问答日志（用户、tenant_id、所选 kb_id、查询、返回引用、时间），验证：完成问答后审计与问答日志均生成（对应「检索与问答行为审计」「问答写入审计与问答日志」Scenario）。
+- [x] 9.3 实现管理员在权限范围内查看问答日志，验证：管理员后台展示其权限内问答记录与对应引用来源（对应 §11.5「查看问答日志」、「管理员查看问答日志」Scenario）。
 - [x] 9.4 知识库问答会话持久化与最近任务写入（c06 为知识库问答会话唯一写入方）：(a) 把会话/消息写入 c04 所建 `conversations`/`messages`，并通过 c04 的 `module`/`source` 两个独立维标记：`module=kb_qa`（机器枚举值，c04 owner 定义、取值域 {aimed, kb_qa}）、`source=「医疗知识库问答」`（§6.4 中文规范值），以区分 AIMed、按 tenant_id/user_id 隔离；(b) 向 c01 所建 `recent_tasks` 写一条 `source=医疗知识库问答`、`ref_type=conversation`、`ref_id=conversation_id` 的记录，以 `(ref_type,ref_id)` 为幂等键 upsert，验证：完成一次问答后会话落 conversations/messages 且 `module=kb_qa`、非 AIMed 模式（`module≠aimed`）、c05 可按 `module=kb_qa` 识别恢复、recent_tasks 出现该会话条目（source/ref 字段可观测）且可由 c05 按 ref_id 恢复（对应 §24.3「历史进入最近任务」、「问答历史进入最近任务」「知识库问答会话持久化到 conversations/messages」「知识库问答写入最近任务」Scenario、Decision B）。
 
 ## 10. 主验收闭环（§24.3 端到端）

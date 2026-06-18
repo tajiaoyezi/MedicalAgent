@@ -189,13 +189,15 @@ func CanUploadToKB(db *gorm.DB, u auth.AuthUser, kbID string) (bool, error) {
 // redactionGateOutbound 是「公网导入前 PHI/PII 脱敏门禁」（5.1/5.2）：调用公网模型（解析/向量化/抓取）前消费
 // c09 redaction-gateway；识别失败/不可用 → 禁止公网、降级私有化/离线（本期默认公网关闭，门禁默认拒绝）。
 // 返回是否放行公网；不放行即走私有化/离线（不阻断导入本身，仅约束出网）。
-func redactionGateOutbound(db *gorm.DB, tenantID, text string) bool {
-	v := model.EvaluateRedaction(model.RedactionInput{TenantID: tenantID, Text: text})
+func redactionGateOutbound(db *gorm.DB, u auth.AuthUser, req ImportRequest) bool {
+	v := model.EvaluateRedaction(model.RedactionInput{TenantID: u.TenantID, Text: req.Title + " " + req.SourceURL})
 	if !v.Available || !v.Passed {
+		// 阻断留痕须与 kb_import_rejected 同字段集（9.1：操作人/tenant_id/kb_id/来源）。
 		_ = audit.Write(db, audit.Entry{
-			TenantID: tenantID, ActionType: "kb_import_redaction_block", TargetType: audit.P("knowledge_base"),
+			TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
+			ActionType: "kb_import_redaction_block", TargetType: audit.P("knowledge_base"), TargetID: audit.P(req.KBID),
 			Result: "失败", FailureReason: audit.P(v.Reason),
-			Metadata: map[string]any{"switchTo": "private_offline"},
+			Metadata: map[string]any{"switchTo": "private_offline", "sourceType": req.SourceType, "sourceUrl": req.SourceURL},
 		})
 		return false
 	}
@@ -215,7 +217,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	}
 	// 公网导入需出网时先过脱敏门禁（本期默认公网关闭→不放行→走私有化/离线，不阻断 staging）。
 	if req.PublicNetwork {
-		_ = redactionGateOutbound(db, u.TenantID, req.Title+" "+req.SourceURL)
+		_ = redactionGateOutbound(db, u, req)
 	}
 
 	status, ruleID := classifyAuthorization(db, u.TenantID, req)
@@ -258,7 +260,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
 		ActionType: "kb_import_preview", TargetType: audit.P("knowledge_base"), TargetID: audit.P(req.KBID),
 		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID, "sourceType": req.SourceType,
-			"authorizationStatus": status, "whitelistRuleId": ruleID},
+			"sourceUrl": req.SourceURL, "authorizationStatus": status, "whitelistRuleId": ruleID, "authorizedBy": authByPtr},
 	})
 	return kbDocID, nil
 }
@@ -281,6 +283,8 @@ type kbDocMetaRow struct {
 	IndexStatus         string    `gorm:"column:index_status"`
 	AuthorizationStatus string    `gorm:"column:authorization_status"`
 	DocumentID          *string   `gorm:"column:document_id"`
+	WhitelistRuleID     *string   `gorm:"column:whitelist_rule_id"`
+	AuthorizedBy        *string   `gorm:"column:authorized_by"`
 }
 
 // ConfirmImport 执行四段式管线的「授权闸门 → 入库」（入库前预览确认 / 人工确认链路）：
@@ -290,7 +294,7 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	var rows []kbDocMetaRow
 	if err := db.Raw(
 		`SELECT kb_id, source_url, source_type, imported_by, imported_at, copyright_status, source_version,
-		        parse_status, index_status, authorization_status, document_id
+		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by
 		 FROM kb_documents WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID,
 	).Scan(&rows).Error; err != nil {
 		return err
@@ -341,7 +345,8 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	_ = audit.Write(db, audit.Entry{
 		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
 		ActionType: "kb_import_confirm", TargetType: audit.P("knowledge_base"), TargetID: audit.P(r.KBID),
-		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID},
+		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID, "sourceType": r.SourceType,
+			"sourceUrl": r.SourceURL, "whitelistRuleId": r.WhitelistRuleID, "authorizedBy": r.AuthorizedBy},
 	})
 	return nil
 }

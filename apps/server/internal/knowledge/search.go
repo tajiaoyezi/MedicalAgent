@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"medoffice/server/internal/audit"
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/rag"
 )
@@ -139,6 +140,16 @@ func KBSearch(db *gorm.DB, eng *rag.Engine, u auth.AuthUser, kbIDs []string, que
 		}
 		hits = filtered
 	}
+
+	// 检索行为审计（9.2）：记录用户/tenant_id/所选 kb_id/查询/模式/返回命中数/筛选条件/时间。
+	_ = audit.Write(db, audit.Entry{
+		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
+		ActionType: "kb_search", TargetType: audit.P("knowledge_base"),
+		Result: "成功", Metadata: map[string]any{
+			"query": query, "mode": m, "kbIds": scope, "hitCount": len(hits),
+			"docType": f.DocType, "source": f.Source,
+		},
+	})
 
 	return &SearchResult{Mode: m, Hits: hits, Total: len(hits)}, nil
 }
