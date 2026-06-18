@@ -40,7 +40,9 @@ func BatchImport(db *gorm.DB, u auth.AuthUser, items []ImportRequest) []BatchIte
 // screenUpload 知识库本地/批量上传入口的 c09 上传闸消费（5.2a，与出网/向量化前门禁为两个独立执行点）：
 // 在内容持久化入 kb_documents/向量化前先经 c09 redaction-gateway 上传闸做 PHI/PII 识别；策略=阻止上传且命中
 // 时拒绝入库并写 result=失败、failure_reason 非空的 audit_logs（脱敏命中由 c09 写 privacy_redaction_events，
-// 本能力不写）。redaction-gateway owner=c09，c06 仅前置消费 uploadgate.Check 接缝（stub 默认放行）。
+// 本能力不写）。redaction-gateway owner=c09，c06 仅前置消费 uploadgate.Check 接缝。
+// 注意：c09 未接入前 Check 为恒放行 stub（IsRedactionGatewayAvailable()=false），本期上传闸不实际拦截任何内容
+// （与公网默认关闭 posture 一致）；c09 落地后于启动期注入真实检测实现，届时阻止策略才生效。
 // 返回是否放行；不放行即拒绝该文件入库。
 func screenUpload(db *gorm.DB, u auth.AuthUser, kbID, filename string, buffer []byte) (bool, string) {
 	g := uploadgate.Check(filename, buffer)
@@ -113,6 +115,8 @@ func KBUpload(ctx context.Context, db *gorm.DB, store *storage.Storage, u auth.A
 			}
 			return tx.Exec(`UPDATE documents SET current_version_id = ? WHERE document_id = ?`, verID, docID).Error
 		}); err != nil {
+			// 事务回滚后补偿删除已落盘对象，避免 MinIO 孤儿对象（与 c01/c02/c04「Put 在事务外、事务失败必补偿删除」同口径）。
+			_ = store.Delete(ctx, objectKey)
 			out = append(out, KBUploadResult{Filename: f.Filename, Error: "落库失败"})
 			continue
 		}

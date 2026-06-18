@@ -722,6 +722,7 @@ func main() {
 	// 5.2a：c09 上传闸「阻止上传」策略 —— 命中 PHI 逐份拒绝入库 + 写 audit_logs(失败)，门禁在持久化前（与出网门禁两个独立执行点）。
 	g.Exec(`DELETE FROM audit_logs WHERE tenant_id=? AND action_type='kb_upload_blocked'`, tenantID)
 	orig := uploadgate.Check
+	defer func() { uploadgate.Check = orig }() // defer 还原（即便中途 panic 也复位 stub，避免污染）
 	uploadgate.Check = func(filename string, buffer []byte) uploadgate.Result {
 		return uploadgate.Result{Allowed: false, FailureReason: "命中身份证号/手机号（演示阻止策略）"}
 	}
@@ -729,7 +730,7 @@ func main() {
 		{Filename: "phi-1.txt", MimeType: "text/plain", Buffer: []byte("张三 身份证 110101...")},
 		{Filename: "phi-2.txt", MimeType: "text/plain", Buffer: []byte("手机号 138...")},
 	})
-	uploadgate.Check = orig // 还原 stub（默认放行）
+	uploadgate.Check = orig // 还原 stub（默认放行）；defer 兜底 panic 路径
 	allBlocked := len(blockRes) == 2
 	for _, r := range blockRes {
 		if !r.Blocked {
