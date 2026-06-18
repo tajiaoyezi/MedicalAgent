@@ -102,6 +102,30 @@ func (ix *Index) IndexDocument(db *gorm.DB, documentID string, version int) erro
 	return ix.HandleIndexReady(db, parsing.IndexReadyEvent{DocumentID: documentID, DocumentVersion: version})
 }
 
+// IndexAllReady 启动期全量装载：把所有「未 superseded chunk」的文档按其版本载入进程内索引。
+// 进程内索引非持久化——重启后为空，仅靠后续「索引就绪」事件增量构建；故已持久化为 indexed 的文档
+// （含 migrate 装载的预置库演示资料，c06 2.3）在重启后、无新事件时将不可检索。本方法在 server 启动
+// 装配时调用一次，使这些已索引文档无需等待新事件即可被检索问答。返回装载文档数。
+func (ix *Index) IndexAllReady(db *gorm.DB) (int, error) {
+	var rows []struct {
+		DocumentID      string `gorm:"column:document_id"`
+		DocumentVersion int    `gorm:"column:document_version"`
+	}
+	if err := db.Raw(
+		`SELECT DISTINCT document_id, document_version FROM document_chunks WHERE superseded = FALSE`,
+	).Scan(&rows).Error; err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, r := range rows {
+		if err := ix.IndexDocument(db, r.DocumentID, r.DocumentVersion); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
 // Version 返回某文档已索引版本（0=未索引）。
 func (ix *Index) Version(documentID string) int {
 	ix.mu.RLock()

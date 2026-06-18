@@ -2,6 +2,7 @@
 package server
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -69,6 +70,12 @@ func New(d Deps) *gin.Engine {
 	ragEngine := rag.NewEngine(pubSvc)
 	rag.RegisterIndexConsumer(d.DB)       // c04：订阅 c03 indexing_handoff「索引就绪」事件构建内存检索索引
 	knowledge.RegisterIndexConsumer(d.DB) // c06：同一事件知识库侧消费方（标记 kb chunk + 置 indexed + 刷新 document_count，须在 rag 之后）
+	// 启动期全量装载已持久化为 indexed 的文档（含预置库演示资料 c06 2.3），使重启后无需等待新事件即可检索。
+	if n, err := rag.Default().IndexAllReady(d.DB); err != nil {
+		log.Printf("[rag-index] 启动期全量装载失败: %v", err)
+	} else {
+		log.Printf("[rag-index] 启动期装载 %d 个已索引文档", n)
+	}
 	aimedSvc := aimed.NewService(ragEngine)
 	routes.RegisterAIMed(r, d.DB, d.Storage, aimedSvc)
 	routes.RegisterKnowledge(r, d.DB, aimedSvc, ragEngine) // c06 知识库管理 + 搜索 + 检索问答（复用 c04 RAG/Answer 内核）

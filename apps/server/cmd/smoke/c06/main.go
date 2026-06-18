@@ -79,11 +79,22 @@ func cleanup(g *gorm.DB, tenantID string) {
 		g.Exec(`DELETE FROM messages WHERE conversation_id = ?`, cid)
 		g.Exec(`DELETE FROM conversations WHERE conversation_id = ?`, cid)
 	}
-	// 自愈物化计数：document_count 从 kb_documents 真值重算（修复「kb_document 删除后无后续索引事件」遗留的漂移），
-	// member_count 重置（ACL 阶段前恒 0）。使冒烟对历史污染稳健、且 document_count 与真值一致。
+	// 自愈物化计数：document_count 与 member_count 均从真值重算（修复测试残留漂移）。
+	// member_count = owner ∪ 授权解析到的用户去重（与 refreshMemberCount 同口径）——预置库装载演示文档后
+	// 应反映其授权成员（不再恒 0），使冒烟对历史污染稳健、且两项计数与真值一致。
 	g.Exec(`UPDATE knowledge_bases SET
 		document_count = (SELECT COUNT(*) FROM kb_documents kd WHERE kd.kb_id = knowledge_bases.kb_id AND kd.index_status='indexed' AND kd.is_staging=FALSE),
-		member_count = 0
+		member_count = (SELECT COUNT(DISTINCT uid) FROM (
+			SELECT d.owner_id::text AS uid FROM kb_documents kbd JOIN documents d ON d.document_id = kbd.document_id
+			  WHERE kbd.kb_id = knowledge_bases.kb_id AND kbd.is_staging = FALSE
+			UNION
+			SELECT u.user_id::text FROM users u WHERE u.tenant_id = knowledge_bases.tenant_id AND EXISTS (
+			  SELECT 1 FROM kb_documents kbd JOIN document_permissions dp ON dp.document_id = kbd.document_id
+			  WHERE kbd.kb_id = knowledge_bases.kb_id AND kbd.is_staging = FALSE AND dp.permission_level <> 'none' AND (
+			    (dp.principal_type='user' AND dp.principal_id = u.user_id::text)
+			    OR (dp.principal_type='role' AND dp.principal_id IN (SELECT r.slug FROM roles r JOIN user_roles ur ON ur.role_id = r.role_id WHERE ur.user_id = u.user_id))
+			    OR (dp.principal_type='dept' AND dp.principal_id = u.dept_id)))
+		) m)
 		WHERE tenant_id = ?`, tenantID)
 }
 
@@ -151,7 +162,7 @@ func main() {
 	c0 := cards[0]
 	okAssert(c0.KBID != "" && c0.Name != "" && c0.DataSource != "" && c0.UpdatedAt != "", "卡片含 名称/ID/数据源/更新时间")
 	okAssert(c0.CreatedByName != "", "卡片含创建人（seed 库回退「系统预置」或 admin 显示名）")
-	okAssert(c0.MemberCount == 0 && c0.DocumentCount == 0, "预置空库 成员人数/文档数量 物化计数初值为 0（ACL/索引就绪事件后刷新）")
+	okAssert(c0.DocumentCount >= 1 && c0.MemberCount >= 1, "预置库装载演示文档后 文档数量/成员人数 物化计数>0（2.3 演示资料 + ACL 刷新；空库计数初值 0 见 [18]）")
 
 	// ---- [4] 创建 RBAC（kb:create 锚定 c01 auth-rbac）----
 	fmt.Println("\n[4] 创建知识库 RBAC（kb:create）")
@@ -335,6 +346,10 @@ func main() {
 	fmt.Println("\n[14] 知识库问答（§11.7 接 c04 RAG/Answer + kb_id 选择 + 溯源 + 最近任务）")
 	model.Init(cfg.Model.CredentialSecret, cfg.Model.HealthTTLSeconds)
 	qaSvc := aimed.NewService(rag.NewEngine(pubmed.NewService(nil, nil, false)))
+	// 复刻 server 启动期全量装载：使 migrate 装载的预置库演示资料（[18] 2.3）等已持久化 indexed 文档可被检索。
+	if _, err := rag.Default().IndexAllReady(g); err != nil {
+		log.Fatalf("rag 全量装载: %v", err)
+	}
 
 	convID, err := knowledge.StartKBQA(g, admin, "c06-smoke-qa 术后护理")
 	okAssert(err == nil && convID != "", "创建知识库问答会话")
@@ -626,8 +641,61 @@ func main() {
 		okAssert(nxCross.CitationCount == len(nxCross.Citations), "9.3 裁剪后 citationCount 与实际返回引用数对齐（不泄露被裁引用存在性）")
 	}
 
+	// ================= 组 2：演示资料库（2.3）+ 预置空库完整能力（2.4）=================
+	fmt.Println("\n[18] 演示资料库（2.3 每库 ≥1 授权演示文档）+ 预置空库完整能力（2.4）")
+	// 2.3：13 预置库各有 ≥1 份 authorized+indexed+非 staging 演示文档（demo:// 哨兵；经真实导入管线
+	// PreviewImport→ConfirmImport→HandleIndexReady 装载，授权/ACL/计数均由真实服务层产出、无 seed 二次实现）
+	var seedDemoKBs []string
+	g.Raw(`SELECT DISTINCT kb.kb_id FROM knowledge_bases kb JOIN kb_documents kd ON kd.kb_id=kb.kb_id
+		WHERE kb.tenant_id=? AND kb.is_seed=TRUE AND kd.source_url LIKE 'demo://%'
+		  AND kd.authorization_status='authorized' AND kd.index_status='indexed' AND kd.is_staging=FALSE
+		ORDER BY kb.kb_id`, tenantID).Scan(&seedDemoKBs)
+	okAssert(len(seedDemoKBs) == 13, fmt.Sprintf("13 个预置库各有 ≥1 份 authorized+indexed 演示文档（实际 %d；c06 唯一资产装载 owner，经真实 D3/D4 管线装载）", len(seedDemoKBs)))
+	// 「可被检索问答」逐库验证（非抽样）：普通用户（经全角色 view 授权）对每个预置库均能检索到演示文档
+	retrievableKBs := 0
+	for _, kbID := range seedDemoKBs {
+		sr, e := knowledge.KBSearch(g, searchEng, normal, []string{kbID}, "演示", "keyword", knowledge.SearchFilters{})
+		if e == nil && sr.Total >= 1 {
+			retrievableKBs++
+		}
+	}
+	okAssert(retrievableKBs == 13, fmt.Sprintf("13 个预置库演示文档**每库**均可被普通用户检索到（实际 %d/13，非抽样）", retrievableKBs))
+	demoSeedKB := seedDemoKBs[0]
+	// 文档类型筛选维对演示库有效（演示文档 name 带 .txt 扩展名 → fileExt=txt，§11.6 筛选维不被削弱）
+	dTxt, _ := knowledge.KBSearch(g, searchEng, normal, []string{demoSeedKB}, "演示", "keyword", knowledge.SearchFilters{DocType: "txt"})
+	okAssert(dTxt.Total >= 1, "演示库按文档类型=txt 筛选命中（演示文档带扩展名、与真实上传件一致）")
+	// 问答可溯源到该库
+	demoConv, _ := knowledge.StartKBQA(g, normal, "c06-smoke-demo-qa")
+	demoQA, dqerr := knowledge.AskKB(g, qaSvc, normal, demoConv, []string{demoSeedKB}, "演示")
+	demoCited := false
+	if dqerr == nil && demoQA != nil {
+		for _, ct := range demoQA.Citations {
+			if ct.KBID == demoSeedKB {
+				demoCited = true
+			}
+		}
+	}
+	okAssert(demoCited, "普通用户对预置库演示文档问答可溯源到该库（kb_id 引用，§11.8）")
+
+	// 2.4：预置/新建空库仍具备完整能力（上传/导入/检索/问答/溯源/权限过滤入口不被禁用）
+	emptyCapKB, _ := knowledge.Create(g, admin, "c06-smoke-empty-cap", "空库能力", "测试")
+	emptyCard, ecErr := knowledge.Get(g, admin, emptyCapKB)
+	okAssert(ecErr == nil && emptyCard != nil && emptyCard.DocumentCount == 0 && emptyCard.MemberCount == 0, "空库可打开、文档/成员计数初值为 0（空库 vs 演示库计数对照）")
+	emptyDoc, eiErr := knowledge.PreviewImport(g, admin, knowledge.ImportRequest{KBID: emptyCapKB, SourceType: knowledge.SrcUpload, SourceURL: "file://c06-smoke-empty.txt", Title: "空库导入件"})
+	okAssert(eiErr == nil && emptyDoc != "", "空库上传/导入入口就绪（可发起预览导入）")
+	okAssert(knowledge.CancelImport(g, admin, emptyDoc) == nil, "空库预览可取消（不落正式库、不建索引）")
+	emptySearch, esErr := knowledge.KBSearch(g, searchEng, admin, []string{emptyCapKB}, "演示", "hybrid", knowledge.SearchFilters{})
+	okAssert(esErr == nil && emptySearch.Total == 0, "空库检索入口可用（无资料返回 0 命中而非禁用/报错）")
+	emptyQAConv, _ := knowledge.StartKBQA(g, admin, "c06-smoke-empty-qa")
+	emptyQA, eqErr := knowledge.AskKB(g, qaSvc, admin, emptyQAConv, []string{emptyCapKB}, "演示")
+	okAssert(eqErr == nil && emptyQA.NoResults, "空库问答入口可用（无召回不臆造 NoResults 而非禁用）")
+	// 权限过滤/管理入口对空库不被禁用（2.4 列举的「权限过滤入口」）
+	canMgrEmpty, _ := knowledge.CanManageKB(g, admin, emptyCapKB)
+	okAssert(canMgrEmpty, "空库权限管理入口就绪（创建人 CanManageKB=true）")
+	okAssert(knowledge.GrantKB(g, admin, emptyCapKB, "role", "user", "view") == nil, "空库 ACL 授予入口可用（GrantKB 不因空库被禁用）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库）全部通过")
 }
 
 // containsStr 判断字符串切片是否含目标值（smoke 本地小工具）。

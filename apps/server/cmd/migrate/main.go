@@ -8,6 +8,7 @@ import (
 
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/db"
+	"medoffice/server/internal/knowledge"
 )
 
 func main() {
@@ -32,6 +33,23 @@ func main() {
 	// 既有库也能补上 13 库；生产同样需要预置库，故不受 NodeEnv 跳过约束）。
 	if err := db.SeedKnowledgeBases(ctx, conn); err != nil {
 		log.Fatalf("seed knowledge bases: %v", err)
+	}
+	// 每个预置库装载 ≥1 份授权/开放演示文档（c06 tasks 2.3，c06 为唯一资产装载 owner）：经真实受控导入管线
+	// （PreviewImport→ConfirmImport→HandleIndexReady）装载、幂等。该步用服务层（gorm），故另开一条 gorm 连接。
+	// 演示文档为占位演示内容，生产环境不注入（与 db.Seed 演示账号同口径显式跳过；13 预置空库仍由 SeedKnowledgeBases 建好）。
+	if cfg.NodeEnv == "production" {
+		log.Println("生产环境：跳过演示文档 seed")
+	} else {
+		g, err := db.Open(cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("open gorm: %v", err)
+		}
+		if sqlDB, e := g.DB(); e == nil {
+			defer sqlDB.Close()
+		}
+		if _, err := knowledge.SeedDemoDocuments(g); err != nil {
+			log.Fatalf("seed demo documents: %v", err)
+		}
 	}
 	log.Println("migrate done")
 }
