@@ -258,7 +258,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
 		ActionType: "kb_import_preview", TargetType: audit.P("knowledge_base"), TargetID: audit.P(req.KBID),
 		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID, "sourceType": req.SourceType,
-			"authorizationStatus": status, "whitelistRuleId": ruleID},
+			"sourceUrl": req.SourceURL, "authorizationStatus": status, "whitelistRuleId": ruleID, "authorizedBy": authByPtr},
 	})
 	return kbDocID, nil
 }
@@ -281,6 +281,8 @@ type kbDocMetaRow struct {
 	IndexStatus         string    `gorm:"column:index_status"`
 	AuthorizationStatus string    `gorm:"column:authorization_status"`
 	DocumentID          *string   `gorm:"column:document_id"`
+	WhitelistRuleID     *string   `gorm:"column:whitelist_rule_id"`
+	AuthorizedBy        *string   `gorm:"column:authorized_by"`
 }
 
 // ConfirmImport 执行四段式管线的「授权闸门 → 入库」（入库前预览确认 / 人工确认链路）：
@@ -290,7 +292,7 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	var rows []kbDocMetaRow
 	if err := db.Raw(
 		`SELECT kb_id, source_url, source_type, imported_by, imported_at, copyright_status, source_version,
-		        parse_status, index_status, authorization_status, document_id
+		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by
 		 FROM kb_documents WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID,
 	).Scan(&rows).Error; err != nil {
 		return err
@@ -341,7 +343,8 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	_ = audit.Write(db, audit.Entry{
 		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
 		ActionType: "kb_import_confirm", TargetType: audit.P("knowledge_base"), TargetID: audit.P(r.KBID),
-		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID},
+		Result: "成功", Metadata: map[string]any{"kbDocumentId": kbDocID, "sourceType": r.SourceType,
+			"sourceUrl": r.SourceURL, "whitelistRuleId": r.WhitelistRuleID, "authorizedBy": r.AuthorizedBy},
 	})
 	return nil
 }

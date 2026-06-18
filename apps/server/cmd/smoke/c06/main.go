@@ -508,8 +508,83 @@ func main() {
 	canUpMgr, _ := knowledge.CanUploadToKB(g, normal, privKB)
 	okAssert(canUpMgr, "授予 per-kb manage 后为库管理员、可上传到自管库")
 
+	// ================= wave D：审计、问答日志与管理员查看（组 9）=================
+	fmt.Println("\n[17] 审计 / 问答日志 / 管理员查看（组 9：9.1 导入审计 + 9.2 检索问答审计 + 9.3 管理员查看）")
+	// 9.1 导入与授权行为审计留痕：含来源/授权确认人/白名单规则 ID + 红线阻断同样留痕。
+	var impConfirm, impRej, impAuthBy, impRule int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_confirm' AND metadata->>'sourceType' <> ''`, tenantID).Scan(&impConfirm)
+	okAssert(impConfirm >= 1, "9.1 入库确认写 audit_logs 且含来源(sourceType)")
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_rejected'`, tenantID).Scan(&impRej)
+	okAssert(impRej >= 1, "9.1 被红线阻断的导入同样留痕（kb_import_rejected）")
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_preview' AND metadata->>'authorizedBy' IS NOT NULL AND metadata->>'authorizedBy' <> ''`, tenantID).Scan(&impAuthBy)
+	okAssert(impAuthBy >= 1, "9.1 管理员授权导入留痕授权确认人(authorizedBy)")
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_preview' AND metadata->>'whitelistRuleId' <> ''`, tenantID).Scan(&impRule)
+	okAssert(impRule >= 1, "9.1 白名单导入留痕白名单规则 ID(whitelistRuleId)")
+
+	// 9.2 检索与问答行为审计 + 生成问答日志（用户/tenant_id/所选 kb_id/查询/返回引用/时间）。
+	var qaAudit, qaWithCite, searchAudit int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_qa' AND metadata->>'query' <> '' AND metadata->'kbIds' IS NOT NULL`, tenantID).Scan(&qaAudit)
+	okAssert(qaAudit >= 1, "9.2 问答写入 audit_logs（含用户/tenant_id/所选 kb_id/查询/时间）")
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_qa' AND (metadata->>'citationCount')::int >= 1`, tenantID).Scan(&qaWithCite)
+	okAssert(qaWithCite >= 1, "9.2 问答日志记录返回引用数（citationCount≥1）")
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_search' AND metadata->>'query' <> ''`, tenantID).Scan(&searchAudit)
+	okAssert(searchAudit >= 1, "9.2 检索行为写入 audit_logs（含查询/模式/所选 kb_id/命中数）")
+
+	// 9.3 管理员在权限范围内查看问答日志 + 对应引用来源。
+	adminLogs, errAL := knowledge.ListQALogs(g, admin, "", 0)
+	okAssert(errAL == nil && len(adminLogs) >= 1, "9.3 平台管理员查看全租户问答日志")
+	logFields, logHasCite := false, false
+	for _, lg := range adminLogs {
+		if lg.Query != "" && lg.UserID != "" && lg.OccurredAt != "" {
+			logFields = true
+		}
+		if len(lg.Citations) >= 1 {
+			logHasCite = true
+		}
+	}
+	okAssert(logFields, "9.3 问答日志条目含 用户/查询/时间")
+	okAssert(logHasCite, "9.3 问答日志展示对应引用来源（citations 按 message_id 关联）")
+
+	// 权限范围裁剪：库管理员仅见自管库相关问答（normal 已在 [16] 获 privKB manage 授予）。
+	mgrLogs, errMgr := knowledge.ListQALogs(g, normal, "", 0)
+	okAssert(errMgr == nil && len(mgrLogs) >= 1, "9.3 库管理员可查看自管库相关问答日志")
+	mgrScoped := true
+	for _, lg := range mgrLogs {
+		if !containsStr(lg.KBIDs, privKB) {
+			mgrScoped = false
+		}
+	}
+	okAssert(mgrScoped, "9.3 库管理员问答日志严格裁剪到自管库（不含仅 seedKB 的问答）")
+
+	// 非管理者（无任何库管理权）查看被拒。
+	stranger := auth.AuthUser{UserID: uuid.NewString(), TenantID: tenantID, RoleSlugs: []string{"user"}, Permissions: []string{"document:read"}}
+	_, errStranger := knowledge.ListQALogs(g, stranger, "", 0)
+	okAssert(errStranger == knowledge.ErrForbidden, "9.3 不管理任何库的普通用户查看问答日志被拒（管理类视图隔离）")
+
+	// kbFilter：库管理员越界按非自管库过滤被拒；平台管理员按某库过滤仅返回该库问答。
+	_, errFilter := knowledge.ListQALogs(g, normal, seedKB, 0)
+	okAssert(errFilter == knowledge.ErrForbidden, "9.3 库管理员按非自管库(seedKB)过滤问答日志被拒（越界裁剪）")
+	filtLogs, _ := knowledge.ListQALogs(g, admin, importKB, 0)
+	filtScoped := len(filtLogs) >= 1
+	for _, lg := range filtLogs {
+		if !containsStr(lg.KBIDs, importKB) {
+			filtScoped = false
+		}
+	}
+	okAssert(filtScoped, "9.3 按 importKB 过滤 → 仅返回含该库的问答日志")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志）全部通过")
+}
+
+// containsStr 判断字符串切片是否含目标值（smoke 本地小工具）。
+func containsStr(xs []string, target string) bool {
+	for _, x := range xs {
+		if x == target {
+			return true
+		}
+	}
+	return false
 }
 
 // makeKBDoc 造一个属某 KB 的正式文档：documents(app_source=kb)+version+2 chunk（source_type=document，待索引就绪标 kb）

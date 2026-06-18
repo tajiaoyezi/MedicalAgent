@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"medoffice/server/internal/aimed"
+	"medoffice/server/internal/audit"
 	"medoffice/server/internal/auth"
 )
 
@@ -101,6 +102,16 @@ func AskKB(db *gorm.DB, svc *aimed.Service, u auth.AuthUser, convID string, kbID
 	// upsert 最近任务（§6.4：source=医疗知识库问答、ref_type=conversation、ref_id=conversation_id；
 	// 标题取最初提问、(ref_type,ref_id) 幂等，同会话多轮只更新 updated_at 不改标题）。
 	upsertKBQARecentTask(db, u, convID, query)
+	// 问答行为审计 + 问答日志（9.2）：记录用户/tenant_id/所选 kb_id/查询/返回引用/时间，供管理员事后查看（9.3）。
+	_ = audit.Write(db, audit.Entry{
+		TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
+		ActionType: "kb_qa", TargetType: audit.P("conversation"), TargetID: audit.P(convID),
+		Result: "成功", Metadata: map[string]any{
+			"messageId": res.MessageID, "query": query, "kbIds": scope,
+			"citationCount": len(res.Citations), "highRisk": res.HighRisk,
+			"requiresConfirmation": res.RequiresConfirmation,
+		},
+	})
 	return &res, nil
 }
 

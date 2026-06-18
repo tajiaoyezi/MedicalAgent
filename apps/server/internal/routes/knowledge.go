@@ -3,6 +3,7 @@ package routes
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -328,6 +329,28 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragE
 			return
 		}
 		c.JSON(http.StatusOK, res)
+	})
+
+	// 管理员在权限范围内查看问答日志（9.3，§11.5）：平台管理员见全租户、库管理员见自管库相关问答；
+	// 普通用户（不管理任何库）被拒。每条含用户/所选 kb_id/查询/时间与对应引用来源。
+	r.GET("/api/kb-qa/logs", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		limit := 0
+		if v := c.Query("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				limit = n
+			}
+		}
+		logs, err := knowledge.ListQALogs(db, user, c.Query("kbId"), limit)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"logs": logs})
 	})
 
 	// 会话恢复回源（§6.6 由 c05 最近任务恢复编排消费）：取 kb_qa 会话 + 消息。
