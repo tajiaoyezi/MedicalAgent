@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -19,6 +20,7 @@ import (
 	"medoffice/server/internal/parsing"
 	"medoffice/server/internal/pubmed"
 	"medoffice/server/internal/rag"
+	"medoffice/server/internal/uploadgate"
 )
 
 func okAssert(cond bool, msg string) {
@@ -694,8 +696,57 @@ func main() {
 	okAssert(canMgrEmpty, "空库权限管理入口就绪（创建人 CanManageKB=true）")
 	okAssert(knowledge.GrantKB(g, admin, emptyCapKB, "role", "user", "view") == nil, "空库 ACL 授予入口可用（GrantKB 不因空库被禁用）")
 
+	// ================= 组 4/5：本地批量上传（4.3）+ c09 上传闸阻止策略（5.2a）=================
+	fmt.Println("\n[19] 本地/批量上传逐项落库（4.3）+ c09 上传闸「阻止上传」策略（5.2a）")
+	upKB, _ := knowledge.Create(g, admin, "c06-smoke-upload", "上传测试库", "测试")
+	// 4.3：批量逐项落库 —— N 份文档经导入管线各落一条独立 staging 入库记录
+	const nBatch = 3
+	items := make([]knowledge.ImportRequest, 0, nBatch)
+	for i := 0; i < nBatch; i++ {
+		dID := mkDocChunks(fmt.Sprintf("c06-smoke-batch-%d.txt", i))
+		items = append(items, knowledge.ImportRequest{KBID: upKB, SourceType: knowledge.SrcUpload, SourceURL: "upload://batch", Title: fmt.Sprintf("批量件%d", i), DocumentID: dID})
+	}
+	batchRes := knowledge.BatchImport(g, admin, items)
+	okAssert(len(batchRes) == nBatch, fmt.Sprintf("批量导入返回 N 条结果（N=%d）", nBatch))
+	created := 0
+	for _, r := range batchRes {
+		if r.KBDocumentID != "" && r.Error == "" {
+			created++
+		}
+	}
+	okAssert(created == nBatch, fmt.Sprintf("一次批量 %d 份生成 %d 条独立入库记录（4.3 逐项落库 N→N）", nBatch, created))
+	var stagingCnt int
+	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE tenant_id=? AND kb_id=? AND is_staging=TRUE`, tenantID, upKB).Scan(&stagingCnt)
+	okAssert(stagingCnt == nBatch, fmt.Sprintf("批量上传逐项落 N 条 staging kb_documents（各自独立 parse/index 状态，实际 %d）", stagingCnt))
+
+	// 5.2a：c09 上传闸「阻止上传」策略 —— 命中 PHI 逐份拒绝入库 + 写 audit_logs(失败)，门禁在持久化前（与出网门禁两个独立执行点）。
+	g.Exec(`DELETE FROM audit_logs WHERE tenant_id=? AND action_type='kb_upload_blocked'`, tenantID)
+	orig := uploadgate.Check
+	defer func() { uploadgate.Check = orig }() // defer 还原（即便中途 panic 也复位 stub，避免污染）
+	uploadgate.Check = func(filename string, buffer []byte) uploadgate.Result {
+		return uploadgate.Result{Allowed: false, FailureReason: "命中身份证号/手机号（演示阻止策略）"}
+	}
+	blockRes, _ := knowledge.KBUpload(context.Background(), g, nil, admin, upKB, []knowledge.KBUploadFile{
+		{Filename: "phi-1.txt", MimeType: "text/plain", Buffer: []byte("张三 身份证 110101...")},
+		{Filename: "phi-2.txt", MimeType: "text/plain", Buffer: []byte("手机号 138...")},
+	})
+	uploadgate.Check = orig // 还原 stub（默认放行）；defer 兜底 panic 路径
+	allBlocked := len(blockRes) == 2
+	for _, r := range blockRes {
+		if !r.Blocked {
+			allBlocked = false
+		}
+	}
+	okAssert(allBlocked, "含 PHI 上传在「阻止上传」策略下逐份被拒（不落盘、不建记录；store 未被触碰）")
+	var blockAudit int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_upload_blocked' AND result='失败' AND failure_reason <> ''`, tenantID).Scan(&blockAudit)
+	okAssert(blockAudit == 2, fmt.Sprintf("阻止上传逐份写 audit_logs(result=失败、failure_reason 非空)（实际 %d，c09 写 privacy_redaction_events，c06 仅留审计）", blockAudit))
+	var afterBlock int
+	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE tenant_id=? AND kb_id=?`, tenantID, upKB).Scan(&afterBlock)
+	okAssert(afterBlock == nBatch, "被阻止的上传未新增 kb_documents（门禁在持久化前拦截，仍为批量的 N 条）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库 + 批量上传/上传闸）全部通过")
 }
 
 // containsStr 判断字符串切片是否含目标值（smoke 本地小工具）。
