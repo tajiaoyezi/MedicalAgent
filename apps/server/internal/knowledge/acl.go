@@ -114,6 +114,10 @@ func CanManageKB(db *gorm.DB, u auth.AuthUser, kbID string) (bool, error) {
 
 // GrantKB 知识库级 ACL 授予（8.3）：把 (principal, level) 应用到该 KB 当前所有正式文档的 document_permissions，
 // 仅平台管理员或库管理员可操作；授予后刷新 member_count。level: view=读取/问答、edit=上传导入、manage=管理。
+//
+// 已知限制（ACL=document_permissions 聚合、无 kb_members 表的设计取舍，POC 可接受）：对**空库**（无正式文档）
+// 授予为 no-op——授权无文档可落、且后续导入的新文档经 applyImportGrants 仅从该库既有文档传播授权，故空库期的
+// 授予不会被新文档继承。实践上应「先导入 ≥1 份文档再授予」，或对空库授权语义在 spec 显式约定后再补强。
 func GrantKB(db *gorm.DB, u auth.AuthUser, kbID, pType, pID, level string) error {
 	if !validPrincipalType(pType) || !validLevel(level) || pID == "" {
 		return ErrInvalidInput

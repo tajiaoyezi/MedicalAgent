@@ -80,9 +80,13 @@ func seedOneDemoDoc(db *gorm.DB, admin auth.AuthUser, e demoDocEntry) (int, erro
 	if kbID == "" {
 		return 0, nil // 预置库不存在（理论上 SeedKnowledgeBases 已补齐）→ 跳过
 	}
-	var exists bool
-	db.Raw(`SELECT EXISTS(SELECT 1 FROM kb_documents WHERE tenant_id = ? AND kb_id = ? AND source_url LIKE 'demo://%')`, admin.TenantID, kbID).Scan(&exists)
-	if exists {
+	// 幂等哨兵要求「已完整装载」（非 staging + 已索引）：若上次 migrate 在 ConfirmImport/HandleIndexReady 前
+	// 中断、残留半截 staging demo:// 行，本次重跑会重新装载一份完整演示文档（旧 staging 行 is_staging=TRUE，
+	// 不计入检索/计数，无害），而非永久卡在未确认态。
+	var done bool
+	db.Raw(`SELECT EXISTS(SELECT 1 FROM kb_documents WHERE tenant_id = ? AND kb_id = ? AND source_url LIKE 'demo://%'
+		AND is_staging = FALSE AND index_status = 'indexed')`, admin.TenantID, kbID).Scan(&done)
+	if done {
 		return 0, nil
 	}
 
