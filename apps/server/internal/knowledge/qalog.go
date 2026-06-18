@@ -76,6 +76,25 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		limit = 200 // 管理后台视图上限；超量截断（§24.3 POC 验收规模足够）
 	}
 
+	// 权限/过滤维下推到 SQL，使 LIMIT 作用在「已按可管理库过滤」的结果集上——
+	// 否则先 LIMIT 后在 Go 侧过滤会把权限范围内、但被租户级 top-N 挤出的日志漏掉。
+	// jsonb 包含判断刻意避开「?」操作符（与 gorm 占位符冲突）：用 jsonb_array_elements_text + IN ?（切片展开）、@> ?::jsonb。
+	q := `SELECT a.audit_id, a.actor_id, a.target_id, u.display_name, a.metadata::text AS metadata, a.created_at
+		 FROM audit_logs a LEFT JOIN users u ON u.user_id = a.actor_id
+		 WHERE a.tenant_id = ? AND a.action_type = 'kb_qa' AND a.result = '成功'`
+	args := []any{u.TenantID}
+	if !all {
+		q += ` AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(a.metadata->'kbIds') e WHERE e IN ?)`
+		args = append(args, managed) // 已保证 managed 非空（前置 ErrForbidden），不会 IN ()
+	}
+	if kbFilter != "" {
+		kf, _ := json.Marshal([]string{kbFilter})
+		q += ` AND a.metadata->'kbIds' @> ?::jsonb`
+		args = append(args, string(kf))
+	}
+	q += ` ORDER BY a.created_at DESC LIMIT ?`
+	args = append(args, limit)
+
 	var rows []struct {
 		AuditID   string  `gorm:"column:audit_id"`
 		ActorID   *string `gorm:"column:actor_id"`
@@ -84,13 +103,7 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		Metadata  string  `gorm:"column:metadata"`
 		CreatedAt string  `gorm:"column:created_at"`
 	}
-	if err := db.Raw(
-		`SELECT a.audit_id, a.actor_id, a.target_id, u.display_name, a.metadata::text AS metadata, a.created_at
-		 FROM audit_logs a LEFT JOIN users u ON u.user_id = a.actor_id
-		 WHERE a.tenant_id = ? AND a.action_type = 'kb_qa' AND a.result = '成功'
-		 ORDER BY a.created_at DESC LIMIT ?`,
-		u.TenantID, limit,
-	).Scan(&rows).Error; err != nil {
+	if err := db.Raw(q, args...).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -104,18 +117,15 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		}
 		_ = json.Unmarshal([]byte(r.Metadata), &md)
 
-		// 权限范围裁剪：库管理员仅见与其管理库相交的问答日志。
-		if !all && !intersects(md.KBIDs, mset) {
-			continue
+		// 库管理员视图：把 kb 集合裁剪为「∩ 自管库」，不回显非自管库的存在性（平台管理员 all=true 见全集）。
+		// 一条跨库问答（kbIds 含自管 ∪ 非自管）虽因命中自管库而可见，但非自管部分 MUST NOT 披露。
+		kbids := md.KBIDs
+		if !all {
+			kbids = clipToSet(md.KBIDs, mset)
 		}
-		// kbFilter 命中裁剪。
-		if kbFilter != "" && !contains(md.KBIDs, kbFilter) {
-			continue
-		}
-
 		e := QALogEntry{
-			LogID: r.AuditID, Query: md.Query, KBIDs: md.KBIDs,
-			MessageID: md.MessageID, CitationCount: md.CitationCount, OccurredAt: r.CreatedAt,
+			LogID: r.AuditID, Query: md.Query, KBIDs: kbids,
+			MessageID: md.MessageID, OccurredAt: r.CreatedAt,
 		}
 		if r.TargetID != nil {
 			e.ConversationID = *r.TargetID
@@ -126,7 +136,8 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		if r.UserName != nil {
 			e.UserName = *r.UserName
 		}
-		// 对应引用来源：按答案 message_id 取 citations（日志已在权限范围内，引用随答案天然同范围）。
+		// 对应引用来源：按答案 message_id 取 citations；库管理员视图再按自管库裁剪引用，
+		// 防跨库问答把非自管库的引用标题/URL/章节/片段（可能含 PHI 源数据）泄露给只管理另一库的管理员。
 		if md.MessageID != "" {
 			var cites []QACitation
 			_ = db.Raw(
@@ -135,27 +146,30 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 				 FROM citations WHERE tenant_id = ? AND message_id = ? ORDER BY cite_index`,
 				u.TenantID, md.MessageID,
 			).Scan(&cites).Error
+			if !all {
+				kept := make([]QACitation, 0, len(cites))
+				for _, ct := range cites {
+					if ct.KBID != "" && mset[ct.KBID] {
+						kept = append(kept, ct)
+					}
+				}
+				cites = kept
+			}
 			e.Citations = cites
 		}
+		e.CitationCount = len(e.Citations) // 计数与裁剪后实际返回的引用对齐，不泄露被裁掉的引用存在性
 		out = append(out, e)
 	}
 	return out, nil
 }
 
-func intersects(ids []string, set map[string]bool) bool {
+// clipToSet 返回 ids 中落在 set 内的子集（保持顺序），用于把日志 kb 集合裁剪到库管理员自管范围。
+func clipToSet(ids []string, set map[string]bool) []string {
+	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if set[id] {
-			return true
+			out = append(out, id)
 		}
 	}
-	return false
-}
-
-func contains(ids []string, target string) bool {
-	for _, id := range ids {
-		if id == target {
-			return true
-		}
-	}
-	return false
+	return out
 }

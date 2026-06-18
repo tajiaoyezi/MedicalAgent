@@ -189,13 +189,15 @@ func CanUploadToKB(db *gorm.DB, u auth.AuthUser, kbID string) (bool, error) {
 // redactionGateOutbound 是「公网导入前 PHI/PII 脱敏门禁」（5.1/5.2）：调用公网模型（解析/向量化/抓取）前消费
 // c09 redaction-gateway；识别失败/不可用 → 禁止公网、降级私有化/离线（本期默认公网关闭，门禁默认拒绝）。
 // 返回是否放行公网；不放行即走私有化/离线（不阻断导入本身，仅约束出网）。
-func redactionGateOutbound(db *gorm.DB, tenantID, text string) bool {
-	v := model.EvaluateRedaction(model.RedactionInput{TenantID: tenantID, Text: text})
+func redactionGateOutbound(db *gorm.DB, u auth.AuthUser, req ImportRequest) bool {
+	v := model.EvaluateRedaction(model.RedactionInput{TenantID: u.TenantID, Text: req.Title + " " + req.SourceURL})
 	if !v.Available || !v.Passed {
+		// 阻断留痕须与 kb_import_rejected 同字段集（9.1：操作人/tenant_id/kb_id/来源）。
 		_ = audit.Write(db, audit.Entry{
-			TenantID: tenantID, ActionType: "kb_import_redaction_block", TargetType: audit.P("knowledge_base"),
+			TenantID: u.TenantID, ActorID: audit.P(u.UserID), ActorRole: roleCSV2(u),
+			ActionType: "kb_import_redaction_block", TargetType: audit.P("knowledge_base"), TargetID: audit.P(req.KBID),
 			Result: "失败", FailureReason: audit.P(v.Reason),
-			Metadata: map[string]any{"switchTo": "private_offline"},
+			Metadata: map[string]any{"switchTo": "private_offline", "sourceType": req.SourceType, "sourceUrl": req.SourceURL},
 		})
 		return false
 	}
@@ -215,7 +217,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	}
 	// 公网导入需出网时先过脱敏门禁（本期默认公网关闭→不放行→走私有化/离线，不阻断 staging）。
 	if req.PublicNetwork {
-		_ = redactionGateOutbound(db, u.TenantID, req.Title+" "+req.SourceURL)
+		_ = redactionGateOutbound(db, u, req)
 	}
 
 	status, ruleID := classifyAuthorization(db, u.TenantID, req)

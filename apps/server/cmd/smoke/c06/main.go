@@ -54,6 +54,8 @@ func cleanup(g *gorm.DB, tenantID string) {
 	var docs []string
 	g.Raw(`SELECT document_id FROM documents WHERE tenant_id = ? AND name LIKE 'c06-smoke%'`, tenantID).Scan(&docs)
 	for _, id := range docs {
+		// 先删消费记账（c03 worker 消费 manual_reindex 等事件时写入），再删 document_events，避免 FK 违约。
+		g.Exec(`DELETE FROM document_event_consumptions WHERE event_id IN (SELECT event_id FROM document_events WHERE document_id = ?)`, id)
 		g.Exec(`DELETE FROM document_events WHERE document_id = ?`, id)
 		g.Exec(`DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM document_chunks WHERE document_id = ?)`, id)
 		g.Exec(`DELETE FROM document_chunks WHERE document_id = ?`, id)
@@ -520,6 +522,9 @@ func main() {
 	okAssert(impAuthBy >= 1, "9.1 管理员授权导入留痕授权确认人(authorizedBy)")
 	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_preview' AND metadata->>'whitelistRuleId' <> ''`, tenantID).Scan(&impRule)
 	okAssert(impRule >= 1, "9.1 白名单导入留痕白名单规则 ID(whitelistRuleId)")
+	var rbFull int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_redaction_block' AND actor_id IS NOT NULL AND target_id IS NOT NULL AND metadata->>'sourceType' <> ''`, tenantID).Scan(&rbFull)
+	okAssert(rbFull >= 1, "9.1 脱敏阻断留痕字段齐全（操作人/kb_id/来源，与 kb_import_rejected 同字段集）")
 
 	// 9.2 检索与问答行为审计 + 生成问答日志（用户/tenant_id/所选 kb_id/查询/返回引用/时间）。
 	var qaAudit, qaWithCite, searchAudit int
@@ -572,6 +577,54 @@ func main() {
 		}
 	}
 	okAssert(filtScoped, "9.3 按 importKB 过滤 → 仅返回含该库的问答日志")
+
+	// 跨库越权裁剪（修复对抗审查 high）：构造一条横跨「自管 KB ∪ 非自管 KB」的问答，
+	// 验证库管理员视图把非自管库的 kb_id 与引用来源裁剪掉（防跨 KB ACL 边界的源数据/存在性泄露）。
+	xMgr, _ := knowledge.Create(g, admin, "c06-smoke-x-mgr", "自管库", "测试")
+	xOther, _ := knowledge.Create(g, admin, "c06-smoke-x-other", "非自管库", "测试")
+	importToKB(xMgr, mkDocChunks("c06-smoke-x-mgr.txt"), "c06-smoke-x-mgr.txt")
+	importToKB(xOther, mkDocChunks("c06-smoke-x-other.txt"), "c06-smoke-x-other.txt")
+	_ = knowledge.GrantKB(g, admin, xMgr, "user", userID, "manage") // normal 管 xMgr、不管 xOther
+	convX, _ := knowledge.StartKBQA(g, admin, "c06-smoke-x-cross")
+	_, _ = knowledge.AskKB(g, qaSvc, admin, convX, []string{xMgr, xOther}, "acl chunk") // admin 跨库问答
+	// 平台管理员视角：该跨库日志含两库且引用确含非自管库 xOther（确认泄露面真实存在，裁剪测试才有意义）
+	axLogs, _ := knowledge.ListQALogs(g, admin, "", 0)
+	var adminCross *knowledge.QALogEntry
+	for i := range axLogs {
+		if axLogs[i].ConversationID == convX {
+			adminCross = &axLogs[i]
+		}
+	}
+	okAssert(adminCross != nil && containsStr(adminCross.KBIDs, xMgr) && containsStr(adminCross.KBIDs, xOther), "9.3 平台管理员见跨库问答日志完整 kb 集（xMgr + xOther）")
+	adminOtherCite := false
+	if adminCross != nil {
+		for _, ct := range adminCross.Citations {
+			if ct.KBID == xOther {
+				adminOtherCite = true
+			}
+		}
+	}
+	okAssert(adminOtherCite, "9.3 平台管理员视图含 xOther 引用（确认跨库引用泄露面真实存在）")
+	// 库管理员（仅管 xMgr）视角：同一日志的 kb 集与引用被裁剪到自管库，xOther 不泄露
+	nxLogs, _ := knowledge.ListQALogs(g, normal, xMgr, 0)
+	var nxCross *knowledge.QALogEntry
+	for i := range nxLogs {
+		if nxLogs[i].ConversationID == convX {
+			nxCross = &nxLogs[i]
+		}
+	}
+	okAssert(nxCross != nil, "9.3 库管理员可见命中其自管库(xMgr)的跨库问答日志")
+	if nxCross != nil {
+		okAssert(containsStr(nxCross.KBIDs, xMgr) && !containsStr(nxCross.KBIDs, xOther), "9.3 库管理员视图 kb 集裁剪到自管库（不回显非自管 xOther 存在性）")
+		nxLeak := false
+		for _, ct := range nxCross.Citations {
+			if ct.KBID == xOther {
+				nxLeak = true
+			}
+		}
+		okAssert(!nxLeak, "9.3 库管理员视图引用来源裁剪掉非自管库 xOther（防跨库源数据泄露）")
+		okAssert(nxCross.CitationCount == len(nxCross.Citations), "9.3 裁剪后 citationCount 与实际返回引用数对齐（不泄露被裁引用存在性）")
+	}
 
 	cleanup(g, tenantID)
 	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志）全部通过")
