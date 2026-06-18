@@ -2,6 +2,7 @@ package routes
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"medoffice/server/internal/httpx"
 	"medoffice/server/internal/knowledge"
 	"medoffice/server/internal/rag"
+	"medoffice/server/internal/storage"
 )
 
 // kbStatus 把知识库服务层语义错误映射为 HTTP 状态码与中文文案。
@@ -43,7 +45,7 @@ func kbStatus(err error) (int, string) {
 
 // RegisterKnowledge 挂载 c06 知识库管理 + 受控导入 + 全局搜索 + 检索问答路由。
 // 搜索（/api/kb-search）与问答（/api/kb-qa/*）复用 c04 rag.Engine / aimed.Service 内核（KB 作数据源 + kb_id 选择）。
-func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragEng *rag.Engine) {
+func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimedSvc *aimed.Service, ragEng *rag.Engine) {
 	// 知识库列表（已按确定性多级排序）；canCreate 决定前端是否展示「创建知识库」管理入口（§11.4 终端用户隔离）。
 	r.GET("/api/kb", func(c *gin.Context) {
 		user, ok := auth.Require(c)
@@ -186,6 +188,48 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, aimedSvc *aimed.Service, ragE
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"kbDocumentId": kbDocID})
+	})
+
+	// 本地/批量上传入口（4.3 批量逐项落库 + 5.2a 持久化前消费 c09 上传闸）：multipart 多文件，每份先过上传闸
+	// （命中阻止策略→拒绝入库+留痕、不落盘），放行则落盘 + 经导入管线落一条 staging 预览记录（N 份→N 条）。
+	r.POST("/api/kb/:id/upload", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 200<<20)
+		form, err := c.MultipartForm()
+		if err != nil {
+			httpx.Fail(c, 400, "上传解析失败或超出大小限制")
+			return
+		}
+		fhs := form.File["files"]
+		if len(fhs) == 0 {
+			httpx.Fail(c, 400, "缺少文件")
+			return
+		}
+		files := make([]knowledge.KBUploadFile, 0, len(fhs))
+		for _, fh := range fhs {
+			f, oerr := fh.Open()
+			if oerr != nil {
+				httpx.Fail(c, 500, "服务器错误")
+				return
+			}
+			buffer, rerr := io.ReadAll(f)
+			f.Close()
+			if rerr != nil {
+				httpx.Fail(c, 400, "文件读取失败")
+				return
+			}
+			files = append(files, knowledge.KBUploadFile{Filename: fh.Filename, MimeType: fh.Header.Get("Content-Type"), Buffer: buffer})
+		}
+		results, err := knowledge.KBUpload(c.Request.Context(), db, store, user, c.Param("id"), files)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"results": results})
 	})
 
 	// 列出某库导入记录（含 staging 与正式，解析/索引状态可追踪）。

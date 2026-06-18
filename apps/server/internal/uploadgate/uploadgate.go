@@ -7,7 +7,9 @@ type Result struct {
 }
 
 // Check：c09 未接入时默认放行；接入后替换为真实 PHI/PII 检测。
-func Check(filename string, buffer []byte) Result {
+// 设为可替换变量（而非纯函数）：c09 redaction-gateway 落地后在此注入真实实现，
+// 冒烟亦可临时替换以验证「阻止上传」策略的拒绝+留痕路径（默认 stub 始终放行、不可触发 block）。
+var Check = func(filename string, buffer []byte) Result {
 	return Result{Allowed: true}
 }
 
