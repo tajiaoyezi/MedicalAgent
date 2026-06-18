@@ -8,6 +8,7 @@ import (
 
 	"medoffice/server/internal/config"
 	"medoffice/server/internal/db"
+	"medoffice/server/internal/knowledge"
 )
 
 func main() {
@@ -33,8 +34,13 @@ func main() {
 	if err := db.SeedKnowledgeBases(ctx, conn); err != nil {
 		log.Fatalf("seed knowledge bases: %v", err)
 	}
-	// 每个预置库装载 ≥1 份授权/开放演示文档（c06 tasks 2.3，c06 为唯一资产装载 owner）；幂等。
-	if err := db.SeedDemoDocuments(ctx, conn); err != nil {
+	// 每个预置库装载 ≥1 份授权/开放演示文档（c06 tasks 2.3，c06 为唯一资产装载 owner）：经真实受控导入管线
+	// （PreviewImport→ConfirmImport→HandleIndexReady）装载、幂等。该步用服务层（gorm），故另开一条 gorm 连接。
+	g, err := db.Open(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("open gorm: %v", err)
+	}
+	if _, err := knowledge.SeedDemoDocuments(g); err != nil {
 		log.Fatalf("seed demo documents: %v", err)
 	}
 	log.Println("migrate done")

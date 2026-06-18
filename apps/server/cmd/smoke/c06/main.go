@@ -643,18 +643,28 @@ func main() {
 
 	// ================= 组 2：演示资料库（2.3）+ 预置空库完整能力（2.4）=================
 	fmt.Println("\n[18] 演示资料库（2.3 每库 ≥1 授权演示文档）+ 预置空库完整能力（2.4）")
-	// 2.3：13 预置库各有 ≥1 份 authorized+indexed+非 staging 演示文档（demo:// 哨兵；由 migrate SeedDemoDocuments 装载）
-	var seedWithDemo int
-	g.Raw(`SELECT COUNT(*)::int FROM knowledge_bases kb WHERE kb.tenant_id=? AND kb.is_seed=TRUE AND EXISTS(
-		SELECT 1 FROM kb_documents kd WHERE kd.kb_id=kb.kb_id AND kd.source_url LIKE 'demo://%'
-		  AND kd.authorization_status='authorized' AND kd.index_status='indexed' AND kd.is_staging=FALSE)`, tenantID).Scan(&seedWithDemo)
-	okAssert(seedWithDemo == 13, fmt.Sprintf("13 个预置库各有 ≥1 份 authorized+indexed 演示文档（实际 %d；c06 为唯一资产装载 owner）", seedWithDemo))
-	// 演示文档可被检索问答：普通用户（经预置库全角色 view 授权）检索/问答命中演示 chunk 并可溯源
-	var demoSeedKB string
-	g.Raw(`SELECT kb_id FROM knowledge_bases WHERE tenant_id=? AND is_seed=TRUE
-		AND kb_id IN (SELECT kb_id FROM kb_documents WHERE source_url LIKE 'demo://%') ORDER BY name LIMIT 1`, tenantID).Scan(&demoSeedKB)
-	demoSearch, derr := knowledge.KBSearch(g, searchEng, normal, []string{demoSeedKB}, "演示", "keyword", knowledge.SearchFilters{})
-	okAssert(derr == nil && demoSearch.Total >= 1, "普通用户可检索到预置库演示文档（演示资料经全角色 view 授权、可被问答检索）")
+	// 2.3：13 预置库各有 ≥1 份 authorized+indexed+非 staging 演示文档（demo:// 哨兵；经真实导入管线
+	// PreviewImport→ConfirmImport→HandleIndexReady 装载，授权/ACL/计数均由真实服务层产出、无 seed 二次实现）
+	var seedDemoKBs []string
+	g.Raw(`SELECT DISTINCT kb.kb_id FROM knowledge_bases kb JOIN kb_documents kd ON kd.kb_id=kb.kb_id
+		WHERE kb.tenant_id=? AND kb.is_seed=TRUE AND kd.source_url LIKE 'demo://%'
+		  AND kd.authorization_status='authorized' AND kd.index_status='indexed' AND kd.is_staging=FALSE
+		ORDER BY kb.kb_id`, tenantID).Scan(&seedDemoKBs)
+	okAssert(len(seedDemoKBs) == 13, fmt.Sprintf("13 个预置库各有 ≥1 份 authorized+indexed 演示文档（实际 %d；c06 唯一资产装载 owner，经真实 D3/D4 管线装载）", len(seedDemoKBs)))
+	// 「可被检索问答」逐库验证（非抽样）：普通用户（经全角色 view 授权）对每个预置库均能检索到演示文档
+	retrievableKBs := 0
+	for _, kbID := range seedDemoKBs {
+		sr, e := knowledge.KBSearch(g, searchEng, normal, []string{kbID}, "演示", "keyword", knowledge.SearchFilters{})
+		if e == nil && sr.Total >= 1 {
+			retrievableKBs++
+		}
+	}
+	okAssert(retrievableKBs == 13, fmt.Sprintf("13 个预置库演示文档**每库**均可被普通用户检索到（实际 %d/13，非抽样）", retrievableKBs))
+	demoSeedKB := seedDemoKBs[0]
+	// 文档类型筛选维对演示库有效（演示文档 name 带 .txt 扩展名 → fileExt=txt，§11.6 筛选维不被削弱）
+	dTxt, _ := knowledge.KBSearch(g, searchEng, normal, []string{demoSeedKB}, "演示", "keyword", knowledge.SearchFilters{DocType: "txt"})
+	okAssert(dTxt.Total >= 1, "演示库按文档类型=txt 筛选命中（演示文档带扩展名、与真实上传件一致）")
+	// 问答可溯源到该库
 	demoConv, _ := knowledge.StartKBQA(g, normal, "c06-smoke-demo-qa")
 	demoQA, dqerr := knowledge.AskKB(g, qaSvc, normal, demoConv, []string{demoSeedKB}, "演示")
 	demoCited := false
@@ -679,6 +689,10 @@ func main() {
 	emptyQAConv, _ := knowledge.StartKBQA(g, admin, "c06-smoke-empty-qa")
 	emptyQA, eqErr := knowledge.AskKB(g, qaSvc, admin, emptyQAConv, []string{emptyCapKB}, "演示")
 	okAssert(eqErr == nil && emptyQA.NoResults, "空库问答入口可用（无召回不臆造 NoResults 而非禁用）")
+	// 权限过滤/管理入口对空库不被禁用（2.4 列举的「权限过滤入口」）
+	canMgrEmpty, _ := knowledge.CanManageKB(g, admin, emptyCapKB)
+	okAssert(canMgrEmpty, "空库权限管理入口就绪（创建人 CanManageKB=true）")
+	okAssert(knowledge.GrantKB(g, admin, emptyCapKB, "role", "user", "view") == nil, "空库 ACL 授予入口可用（GrantKB 不因空库被禁用）")
 
 	cleanup(g, tenantID)
 	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库）全部通过")
