@@ -84,7 +84,10 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		 WHERE a.tenant_id = ? AND a.action_type = 'kb_qa' AND a.result = '成功'`
 	args := []any{u.TenantID}
 	if !all {
-		q += ` AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(a.metadata->'kbIds') e WHERE e IN ?)`
+		// CASE 守卫：kbIds 缺键/为 JSON 标量 null（脏数据）时退化为 []，避免 jsonb_array_elements_text 对标量抛错。
+		q += ` AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(
+			CASE WHEN jsonb_typeof(a.metadata->'kbIds') = 'array' THEN a.metadata->'kbIds' ELSE '[]'::jsonb END
+		) e WHERE e IN ?)`
 		args = append(args, managed) // 已保证 managed 非空（前置 ErrForbidden），不会 IN ()
 	}
 	if kbFilter != "" {
@@ -136,25 +139,20 @@ func ListQALogs(db *gorm.DB, u auth.AuthUser, kbFilter string, limit int) ([]QAL
 		if r.UserName != nil {
 			e.UserName = *r.UserName
 		}
-		// 对应引用来源：按答案 message_id 取 citations；库管理员视图再按自管库裁剪引用，
-		// 防跨库问答把非自管库的引用标题/URL/章节/片段（可能含 PHI 源数据）泄露给只管理另一库的管理员。
+		// 对应引用来源：按答案 message_id 取 citations；库管理员视图把「自管库」裁剪下推 SQL（单一裁剪源、
+		// 子查询永不返回越权行），防跨库问答把非自管库的引用标题/URL/章节/片段（可能含 PHI 源数据）泄露给只管理另一库的管理员。
 		if md.MessageID != "" {
-			var cites []QACitation
-			_ = db.Raw(
-				`SELECT source_type, COALESCE(source_title,'') AS source_title, COALESCE(source_url,'') AS source_url,
-				        COALESCE(kb_id::text,'') AS kb_id
-				 FROM citations WHERE tenant_id = ? AND message_id = ? ORDER BY cite_index`,
-				u.TenantID, md.MessageID,
-			).Scan(&cites).Error
+			cq := `SELECT source_type, COALESCE(source_title,'') AS source_title, COALESCE(source_url,'') AS source_url,
+			        COALESCE(kb_id::text,'') AS kb_id
+			 FROM citations WHERE tenant_id = ? AND message_id = ?`
+			cargs := []any{u.TenantID, md.MessageID}
 			if !all {
-				kept := make([]QACitation, 0, len(cites))
-				for _, ct := range cites {
-					if ct.KBID != "" && mset[ct.KBID] {
-						kept = append(kept, ct)
-					}
-				}
-				cites = kept
+				cq += ` AND kb_id::text IN ?` // 仅返回自管库引用；kb_id 为 NULL（非 KB 引用）一并排除（fail-closed）
+				cargs = append(cargs, managed)
 			}
+			cq += ` ORDER BY cite_index`
+			var cites []QACitation
+			_ = db.Raw(cq, cargs...).Scan(&cites).Error
 			e.Citations = cites
 		}
 		e.CitationCount = len(e.Citations) // 计数与裁剪后实际返回的引用对齐，不泄露被裁掉的引用存在性
