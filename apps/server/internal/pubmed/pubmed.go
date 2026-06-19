@@ -49,11 +49,14 @@ var whitelistHosts = map[string]bool{
 	"dx.doi.org":              true,
 }
 
+// 未授权商业库黑名单（§16.1）。注：URL 红线的最终落库裁决以 c06 knowledge.isCommercialBlocked（子域感知）为唯一真值，
+// 本表仅为 c04 取数侧的初值标记；二者条目保持一致以免观感漂移（子域匹配能力归 c06）。
 var commercialBlocklist = map[string]bool{
 	"wanfangdata.com.cn": true,
 	"cnki.net":           true,
 	"www.cnki.net":       true,
 	"cqvip.com":          true,
+	"www.cqvip.com":      true,
 }
 
 // Service 统一编排：公网脱敏门禁 + 在线/离线选择 + 取数授权标记。

@@ -182,6 +182,17 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimed
 			PublicNetwork   bool   `json:"publicNetwork"`
 		}
 		_ = c.ShouldBindJSON(&body)
+		// url/whitelist 来源需公网抓取，统一经 adapter.ImportFromURL（含 4.8 离线守卫），避免本通用入口旁路离线降级。
+		if body.SourceType == knowledge.SrcURL || body.SourceType == knowledge.SrcWhitelist {
+			kbDocID, err := adapter.ImportFromURL(db, user, c.Param("id"), body.SourceType, body.SourceURL, body.AdminAuthorized)
+			if err != nil {
+				code, msg := kbStatus(err)
+				httpx.Fail(c, code, msg)
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"kbDocumentId": kbDocID})
+			return
+		}
 		kbDocID, err := knowledge.PreviewImport(db, user, knowledge.ImportRequest{
 			KBID: c.Param("id"), SourceType: body.SourceType, SourceURL: body.SourceURL, Title: body.Title,
 			AdminAuthorized: body.AdminAuthorized, DocumentID: body.DocumentID, PublicNetwork: body.PublicNetwork,
@@ -237,7 +248,7 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimed
 			httpx.Fail(c, http.StatusBadRequest, "缺少来源 URL")
 			return
 		}
-		kbDocID, err := adapter.ImportFromURL(db, user, c.Param("id"), body.SourceURL, body.AdminAuthorized)
+		kbDocID, err := adapter.ImportFromURL(db, user, c.Param("id"), knowledge.SrcURL, body.SourceURL, body.AdminAuthorized)
 		if err != nil {
 			code, msg := kbStatus(err)
 			httpx.Fail(c, code, msg)

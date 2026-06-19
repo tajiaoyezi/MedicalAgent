@@ -14,6 +14,7 @@
 | 008 | c05-ai-panel-recent-tasks | `writeback_confirmations`（新建，owner=c05）+ `recent_tasks` 补列（ALTER） |
 | 009 | c06-knowledge-admin | `knowledge_bases` / `kb_documents` / `source_whitelist_rules`（唯一建表 owner=c06，§18 命名；仅消费不重建 c01/c03/c04/c09 表） |
 | 010 | c06-knowledge-admin | `kb_documents` ADD `source_identifier`（PubMed/PMC 导入记录的 pubmed_id/DOI 来源标识，4.6；仅 ALTER 补列） |
+| 011 | c06-knowledge-admin | `kb_documents` ADD `preview_payload`（PubMed/PMC 适配器预览内容暂存，确认时才物化 c01 文档/chunk，D3 隔离；仅 ALTER 补列） |
 
 ## 横切契约
 

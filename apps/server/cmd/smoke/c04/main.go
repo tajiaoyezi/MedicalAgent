@@ -243,6 +243,8 @@ func main() {
 	okAssert(route == "offline" && len(ps) >= 1 && ps[0].PubmedID != "", "公网默认关闭→离线检索返回带 PMID 的可溯源条目")
 	doiSrc, _ := pubSvc.ImportByID(gormDB, ictx, "doi", "10.1000/lung-immuno-2021")
 	okAssert(doiSrc.AuthStatus == pubmed.AuthAuthorized, "白名单 DOI 取数标记 authorized")
+	pmSrc, _ := pubSvc.ImportByID(gormDB, ictx, "pubmed", "34567890")
+	okAssert(pmSrc.AuthStatus == pubmed.AuthAuthorized, "PubMed（kind=pubmed）取数标记 authorized（与 pmc 对称，c06 适配器消费此初值）")
 	urlSrc, _ := pubSvc.ImportByID(gormDB, ictx, "url", "https://research.example.com/x")
 	okAssert(urlSrc.AuthStatus == pubmed.AuthPreviewOnly, "非白名单 URL 标记 preview_only")
 	bizSrc, _ := pubSvc.ImportByID(gormDB, ictx, "url", "https://www.cnki.net/article/1")
