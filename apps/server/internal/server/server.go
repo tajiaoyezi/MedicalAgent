@@ -78,6 +78,6 @@ func New(d Deps) *gin.Engine {
 	}
 	aimedSvc := aimed.NewService(ragEngine)
 	routes.RegisterAIMed(r, d.DB, d.Storage, aimedSvc)
-	routes.RegisterKnowledge(r, d.DB, d.Storage, aimedSvc, ragEngine) // c06 知识库管理 + 搜索 + 检索问答 + 本地/批量上传（复用 c04 RAG/Answer 内核）
+	routes.RegisterKnowledge(r, d.DB, d.Storage, aimedSvc, ragEngine, pubSvc) // c06 知识库管理 + 搜索 + 检索问答 + 本地/批量上传 + PubMed/URL 来源适配器（复用 c04 RAG/Answer/pubmed 内核）
 	return r
 }

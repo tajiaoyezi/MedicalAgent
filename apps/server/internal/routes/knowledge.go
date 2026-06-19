@@ -15,6 +15,7 @@ import (
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/httpx"
 	"medoffice/server/internal/knowledge"
+	"medoffice/server/internal/pubmed"
 	"medoffice/server/internal/rag"
 	"medoffice/server/internal/storage"
 )
@@ -38,6 +39,8 @@ func kbStatus(err error) (int, string) {
 		return http.StatusBadRequest, "缺少必录元数据字段，无法完成入库"
 	case errors.Is(err, knowledge.ErrRedactionBlock):
 		return http.StatusForbidden, "脱敏门禁拦截"
+	case errors.Is(err, knowledge.ErrSourceOffline):
+		return http.StatusServiceUnavailable, "公网不可用，URL/白名单来源不可用，请改用「批量上传已下载的授权文件」完成入库"
 	default:
 		return http.StatusInternalServerError, "服务器错误"
 	}
@@ -45,7 +48,8 @@ func kbStatus(err error) (int, string) {
 
 // RegisterKnowledge 挂载 c06 知识库管理 + 受控导入 + 全局搜索 + 检索问答路由。
 // 搜索（/api/kb-search）与问答（/api/kb-qa/*）复用 c04 rag.Engine / aimed.Service 内核（KB 作数据源 + kb_id 选择）。
-func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimedSvc *aimed.Service, ragEng *rag.Engine) {
+func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimedSvc *aimed.Service, ragEng *rag.Engine, pub *pubmed.Service) {
+	adapter := knowledge.NewSourceAdapter(pub) // 受控公网来源适配器（PubMed/PMC 取数 + URL 离线降级守卫）
 	// 知识库列表（已按确定性多级排序）；canCreate 决定前端是否展示「创建知识库」管理入口（§11.4 终端用户隔离）。
 	r.GET("/api/kb", func(c *gin.Context) {
 		user, ok := auth.Require(c)
@@ -182,6 +186,58 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimed
 			KBID: c.Param("id"), SourceType: body.SourceType, SourceURL: body.SourceURL, Title: body.Title,
 			AdminAuthorized: body.AdminAuthorized, DocumentID: body.DocumentID, PublicNetwork: body.PublicNetwork,
 		})
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"kbDocumentId": kbDocID})
+	})
+
+	// PubMed/PMC 来源适配器（4.6/4.7）：经 c04 pubmed-data-service 按 kind(pubmed/pmc/doi)+id 取结构化文献
+	// （公网可用→在线真实拉取；否则→离线缓存降级），授权三态初值取自 c04 标记；authorized 自动入库+索引。
+	r.POST("/api/kb/:id/import/pubmed", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			Kind string `json:"kind"` // pubmed / pmc / doi
+			ID   string `json:"id"`   // pmid / pmcid / doi
+		}
+		_ = c.ShouldBindJSON(&body)
+		if body.ID == "" {
+			httpx.Fail(c, http.StatusBadRequest, "缺少文献标识")
+			return
+		}
+		if body.Kind == "" {
+			body.Kind = "pubmed"
+		}
+		kbDocID, err := adapter.ImportFromPubMed(db, user, c.Param("id"), body.Kind, body.ID)
+		if err != nil {
+			code, msg := kbStatus(err)
+			httpx.Fail(c, code, msg)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"kbDocumentId": kbDocID})
+	})
+
+	// URL/白名单来源适配器（4.4/4.8）：URL 抓取依赖公网；公网不可用→该来源置不可用并引导改用批量上传授权文件（503）。
+	r.POST("/api/kb/:id/import/url", func(c *gin.Context) {
+		user, ok := auth.Require(c)
+		if !ok {
+			return
+		}
+		var body struct {
+			SourceURL       string `json:"sourceUrl"`
+			AdminAuthorized bool   `json:"adminAuthorized"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		if body.SourceURL == "" {
+			httpx.Fail(c, http.StatusBadRequest, "缺少来源 URL")
+			return
+		}
+		kbDocID, err := adapter.ImportFromURL(db, user, c.Param("id"), body.SourceURL, body.AdminAuthorized)
 		if err != nil {
 			code, msg := kbStatus(err)
 			httpx.Fail(c, code, msg)

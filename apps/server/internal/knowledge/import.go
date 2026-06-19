@@ -61,6 +61,9 @@ type ImportRequest struct {
 	DocumentID string
 	// PublicNetwork：本次导入是否需要调用公网模型（解析/向量化/抓取）。本期默认 false（公网关闭）。
 	PublicNetwork bool
+	// SourceIdentifier：来源标识（4.6：PubMed=pubmed_id、DOI 导入=DOI），落 kb_documents.source_identifier，
+	// 与 source_url 区分（URL 是来源地址、标识是文献号）。upload/url 通常为空。
+	SourceIdentifier string
 }
 
 // hostOf 解析 URL 取规范化主机名（小写、去端口、去尾点）。仅接受 http/https；非法 URL/非 http(s)/无 host → ""。
@@ -236,7 +239,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	if status == AuthPreviewOnly {
 		copyrightStatus = "unknown"
 	}
-	var rulePtr, authByPtr, docPtr any
+	var rulePtr, authByPtr, docPtr, srcIDPtr any
 	if ruleID != "" {
 		rulePtr = ruleID
 	}
@@ -246,13 +249,16 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	if req.DocumentID != "" {
 		docPtr = req.DocumentID
 	}
+	if req.SourceIdentifier != "" {
+		srcIDPtr = req.SourceIdentifier
+	}
 	if err := db.Exec(
 		`INSERT INTO kb_documents
 		   (kb_document_id, tenant_id, kb_id, document_id, source_url, source_type, imported_by, copyright_status,
-		    parse_status, index_status, whitelist_rule_id, authorized_by, authorization_status, is_staging, title)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, TRUE, ?)`,
+		    parse_status, index_status, whitelist_rule_id, authorized_by, authorization_status, is_staging, title, source_identifier)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, TRUE, ?, ?)`,
 		kbDocID, u.TenantID, req.KBID, docPtr, req.SourceURL, req.SourceType, u.UserID, copyrightStatus,
-		rulePtr, authByPtr, status, req.Title,
+		rulePtr, authByPtr, status, req.Title, srcIDPtr,
 	).Error; err != nil {
 		return "", err
 	}
