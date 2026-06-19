@@ -12,6 +12,7 @@ import (
 	"medoffice/server/internal/audit"
 	"medoffice/server/internal/auth"
 	"medoffice/server/internal/model"
+	"medoffice/server/internal/parsing"
 )
 
 // 导入管线语义错误（补充 knowledge.go 的基础错误）。
@@ -61,6 +62,12 @@ type ImportRequest struct {
 	DocumentID string
 	// PublicNetwork：本次导入是否需要调用公网模型（解析/向量化/抓取）。本期默认 false（公网关闭）。
 	PublicNetwork bool
+	// SourceIdentifier：来源标识（4.6：PubMed=pubmed_id、DOI 导入=DOI），落 kb_documents.source_identifier，
+	// 与 source_url 区分（URL 是来源地址、标识是文献号）。upload/url 通常为空。
+	SourceIdentifier string
+	// PreviewPayload：适配器来源（PubMed/PMC）取数得到的文献预览内容 JSON，暂存到 kb_documents.preview_payload，
+	// 确认入库时才物化为 c01 文档/chunk（D3：预览阶段不落正式可检索内容）。upload/url 为空。
+	PreviewPayload string
 }
 
 // hostOf 解析 URL 取规范化主机名（小写、去端口、去尾点）。仅接受 http/https；非法 URL/非 http(s)/无 host → ""。
@@ -236,7 +243,7 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	if status == AuthPreviewOnly {
 		copyrightStatus = "unknown"
 	}
-	var rulePtr, authByPtr, docPtr any
+	var rulePtr, authByPtr, docPtr, srcIDPtr, payloadPtr any
 	if ruleID != "" {
 		rulePtr = ruleID
 	}
@@ -246,13 +253,19 @@ func PreviewImport(db *gorm.DB, u auth.AuthUser, req ImportRequest) (string, err
 	if req.DocumentID != "" {
 		docPtr = req.DocumentID
 	}
+	if req.SourceIdentifier != "" {
+		srcIDPtr = req.SourceIdentifier
+	}
+	if req.PreviewPayload != "" {
+		payloadPtr = req.PreviewPayload
+	}
 	if err := db.Exec(
 		`INSERT INTO kb_documents
 		   (kb_document_id, tenant_id, kb_id, document_id, source_url, source_type, imported_by, copyright_status,
-		    parse_status, index_status, whitelist_rule_id, authorized_by, authorization_status, is_staging, title)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, TRUE, ?)`,
+		    parse_status, index_status, whitelist_rule_id, authorized_by, authorization_status, is_staging, title, source_identifier, preview_payload)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, TRUE, ?, ?, ?::jsonb)`,
 		kbDocID, u.TenantID, req.KBID, docPtr, req.SourceURL, req.SourceType, u.UserID, copyrightStatus,
-		rulePtr, authByPtr, status, req.Title,
+		rulePtr, authByPtr, status, req.Title, srcIDPtr, payloadPtr,
 	).Error; err != nil {
 		return "", err
 	}
@@ -285,6 +298,8 @@ type kbDocMetaRow struct {
 	DocumentID          *string   `gorm:"column:document_id"`
 	WhitelistRuleID     *string   `gorm:"column:whitelist_rule_id"`
 	AuthorizedBy        *string   `gorm:"column:authorized_by"`
+	PreviewPayload      *string   `gorm:"column:preview_payload"`
+	IsStaging           bool      `gorm:"column:is_staging"`
 }
 
 // ConfirmImport 执行四段式管线的「授权闸门 → 入库」（入库前预览确认 / 人工确认链路）：
@@ -294,7 +309,7 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	var rows []kbDocMetaRow
 	if err := db.Raw(
 		`SELECT kb_id, source_url, source_type, imported_by, imported_at, copyright_status, source_version,
-		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by
+		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by, preview_payload, is_staging
 		 FROM kb_documents WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID,
 	).Scan(&rows).Error; err != nil {
 		return err
@@ -310,6 +325,11 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	if !can {
 		return ErrForbidden
 	}
+	// 幂等闸：仅 staging 行可确认。对已确认（is_staging=false）行二次确认为无害 no-op，
+	// 避免把已索引文档重置 parse/index 状态、重复入队解析（物化来源无真实文件、重解析必失败而退化）。
+	if !r.IsStaging {
+		return nil
+	}
 	if r.AuthorizationStatus == AuthRejected {
 		return ErrRejectedSource
 	}
@@ -319,27 +339,47 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	if !metaComplete(r) {
 		return ErrMissingMeta
 	}
+	// 适配器来源（PubMed/PMC）的预览内容在确认时才物化为 c01 文档+chunk（D3：确认前不落正式可检索内容；预览/取消阶段无残留）。
+	docID := ""
+	if r.DocumentID != nil {
+		docID = *r.DocumentID
+	}
+	materialized := false
+	if docID == "" && r.PreviewPayload != nil && *r.PreviewPayload != "" {
+		// 物化 c01 文档/chunk 与回链 kb_documents.document_id 在同一事务内完成（原子，避免中途失败留游离文档）。
+		newDocID, err := materializePreview(db, u, r.KBID, kbDocID, *r.PreviewPayload)
+		if err != nil {
+			return err
+		}
+		docID = newDocID
+		materialized = true
+	}
 	// 确认入库：staging → 正式库（物理进入正式检索范围由 D3 的 is_staging=false 标记）。
 	if err := db.Exec(`UPDATE kb_documents SET is_staging = FALSE, updated_at = NOW() WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID).Error; err != nil {
 		return err
 	}
 	// 物化 document_acl（8.4）：seed 公共库授全角色 view、传播 KB 既有授权到新文档、刷新 member_count。
-	if r.DocumentID != nil && *r.DocumentID != "" {
+	if docID != "" {
 		var seedRows []struct {
 			IsSeed bool `gorm:"column:is_seed"`
 		}
 		_ = db.Raw(`SELECT is_seed FROM knowledge_bases WHERE kb_id = ? AND tenant_id = ?`, r.KBID, u.TenantID).Scan(&seedRows)
-		_ = applyImportGrants(db, u.TenantID, r.KBID, *r.DocumentID, len(seedRows) > 0 && seedRows[0].IsSeed)
+		_ = applyImportGrants(db, u.TenantID, r.KBID, docID, len(seedRows) > 0 && seedRows[0].IsSeed)
 	}
-	// 已落盘文档 → 入队 c03 解析（worker 解析/分块/向量化后发「索引就绪」事件，由 c06 索引消费方置 indexed + 刷新计数）。
-	if r.DocumentID != nil && *r.DocumentID != "" {
+	switch {
+	case materialized:
+		// 适配器预览内容已直接成 chunk，无真实文件需解析 → 标 parsed + 直接消费索引就绪（同 demoseed 口径），不入队解析。
+		_ = db.Exec(`UPDATE kb_documents SET parse_status = 'parsed' WHERE kb_document_id = ?`, kbDocID).Error
+		_ = HandleIndexReady(db, parsing.IndexReadyEvent{TenantID: u.TenantID, DocumentID: docID, DocumentVersion: 1, ChunkCount: 1})
+	case docID != "":
+		// 已落盘文档（upload 路径）→ 入队 c03 解析（worker 解析/分块/向量化后发「索引就绪」事件，由 c06 索引消费方置 indexed + 刷新计数）。
 		_ = db.Exec(`UPDATE kb_documents SET parse_status = 'pending', index_status = 'pending' WHERE kb_document_id = ?`, kbDocID).Error
 		var ver int
-		_ = db.Raw(`SELECT COALESCE(MAX(document_version),1) FROM document_versions WHERE document_id = ?`, *r.DocumentID).Scan(&ver)
+		_ = db.Raw(`SELECT COALESCE(MAX(document_version),1) FROM document_versions WHERE document_id = ?`, docID).Scan(&ver)
 		_ = db.Exec(
 			`INSERT INTO document_parse_jobs (tenant_id, document_id, document_version, status, triggered_by)
 			 VALUES (?, ?, ?, 'pending', 'kb_import')`,
-			u.TenantID, *r.DocumentID, ver,
+			u.TenantID, docID, ver,
 		).Error
 	}
 	_ = audit.Write(db, audit.Entry{

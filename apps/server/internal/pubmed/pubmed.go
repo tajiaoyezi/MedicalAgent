@@ -49,11 +49,14 @@ var whitelistHosts = map[string]bool{
 	"dx.doi.org":              true,
 }
 
+// 未授权商业库黑名单（§16.1）。注：URL 红线的最终落库裁决以 c06 knowledge.isCommercialBlocked（子域感知）为唯一真值，
+// 本表仅为 c04 取数侧的初值标记；二者条目保持一致以免观感漂移（子域匹配能力归 c06）。
 var commercialBlocklist = map[string]bool{
 	"wanfangdata.com.cn": true,
 	"cnki.net":           true,
 	"www.cnki.net":       true,
 	"cqvip.com":          true,
+	"www.cqvip.com":      true,
 }
 
 // Service 统一编排：公网脱敏门禁 + 在线/离线选择 + 取数授权标记。
@@ -68,6 +71,10 @@ type Service struct {
 func NewService(online, offline Provider, publicEnabled bool) *Service {
 	return &Service{online: online, offline: offline, publicEnabled: publicEnabled}
 }
+
+// PublicEnabled 公网取数是否可用（publicEnabled 且 online 非空）。供消费方（c06 URL/白名单导入）判定
+// 公网不可用时降级（D7：URL 来源置不可用、引导改用上传授权文件）。脱敏门禁仍在每次实际出网时另行裁决。
+func (s *Service) PublicEnabled() bool { return s.publicEnabled && s.online != nil }
 
 // Search 统一检索：公网可用且脱敏通过→在线；否则→离线缓存（design D4 熔断降级）。
 // 返回 route 标识数据来源（"online"/"offline"）供答案过程提示。
@@ -115,8 +122,15 @@ func (s *Service) ImportByID(db *gorm.DB, ctx model.InvokeContext, kind, id stri
 	authStatus := classifyAuth(kind, id)
 
 	var src *RetrievedSource
-	// 取数：离线优先归一化（演示/缓存）；rejected 直接不取
-	if authStatus != AuthRejected && s.offline != nil {
+	// 取数路径（design D4/D7 连通性 + 离线降级，与 Search 对称）：
+	// 公网可用且脱敏放行 → 在线真实拉取（4.6 连通性路径）；公网不可用/在线失败 → 离线缓存（4.7 降级）。
+	// rejected 直接不取（红线来源不抓取）。
+	if authStatus != AuthRejected && s.useOnline(db, ctx, id) {
+		if d, err := s.online.FetchDetail(id); err == nil && d != nil {
+			src = d
+		}
+	}
+	if src == nil && authStatus != AuthRejected && s.offline != nil {
 		if d, err := s.offline.FetchDetail(id); err == nil && d != nil {
 			src = d
 		}
@@ -144,6 +158,8 @@ func (s *Service) ImportByID(db *gorm.DB, ctx model.InvokeContext, kind, id stri
 // classifyAuth 按白名单/商业库黑名单裁决授权标记（§16.1）。落库最终裁决归 c06。
 func classifyAuth(kind, id string) string {
 	switch kind {
+	case "pubmed":
+		return AuthAuthorized // PubMed 属 PubMed/PMC 体系白名单开放来源（与 pmc 对称）
 	case "pmc":
 		return AuthAuthorized // PMC 属 PubMed 体系白名单
 	case "doi":

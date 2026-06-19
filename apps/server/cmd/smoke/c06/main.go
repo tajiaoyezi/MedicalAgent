@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -57,6 +58,22 @@ func cleanup(g *gorm.DB, tenantID string) {
 	g.Raw(`SELECT document_id FROM documents WHERE tenant_id = ? AND name LIKE 'c06-smoke%'`, tenantID).Scan(&docs)
 	for _, id := range docs {
 		// 先删消费记账（c03 worker 消费 manual_reindex 等事件时写入），再删 document_events，避免 FK 违约。
+		g.Exec(`DELETE FROM document_event_consumptions WHERE event_id IN (SELECT event_id FROM document_events WHERE document_id = ?)`, id)
+		g.Exec(`DELETE FROM document_events WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM document_chunks WHERE document_id = ?)`, id)
+		g.Exec(`DELETE FROM document_chunks WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM document_parse_jobs WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM kb_documents WHERE document_id = ?`, id)
+		g.Exec(`UPDATE documents SET current_version_id = NULL WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM document_versions WHERE document_id = ?`, id)
+		g.Exec(`DELETE FROM documents WHERE document_id = ?`, id)
+	}
+	// 经来源适配器导入（PubMed/PMC，[20]）的 c01 文档名为文献标题（非 c06-smoke 前缀），上面的名前缀循环漏掉，
+	// 故按 c06-smoke KB 关联的 kb_documents.document_id 兜底清理其 c01 文档/chunk/版本（须在删 KB 与其 kb_documents 之前）。
+	var adapterDocs []string
+	g.Raw(`SELECT DISTINCT kbd.document_id FROM kb_documents kbd JOIN knowledge_bases kb ON kb.kb_id = kbd.kb_id
+		WHERE kb.tenant_id = ? AND kb.name LIKE 'c06-smoke%' AND kbd.document_id IS NOT NULL`, tenantID).Scan(&adapterDocs)
+	for _, id := range adapterDocs {
 		g.Exec(`DELETE FROM document_event_consumptions WHERE event_id IN (SELECT event_id FROM document_events WHERE document_id = ?)`, id)
 		g.Exec(`DELETE FROM document_events WHERE document_id = ?`, id)
 		g.Exec(`DELETE FROM embeddings WHERE chunk_id IN (SELECT id FROM document_chunks WHERE document_id = ?)`, id)
@@ -745,8 +762,104 @@ func main() {
 	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE tenant_id=? AND kb_id=?`, tenantID, upKB).Scan(&afterBlock)
 	okAssert(afterBlock == nBatch, "被阻止的上传未新增 kb_documents（门禁在持久化前拦截，仍为批量的 N 条）")
 
+	// ---- [20] PubMed/PMC 来源适配器（4.6）+ 离线降级（4.7）+ URL 离线降级引导上传（4.8）----
+	fmt.Println("\n[20] PubMed/PMC 来源适配器（4.6）+ 离线降级（4.7）+ URL 离线降级引导上传（4.8）")
+	// 公网关闭 + 仅离线缓存 provider（断网 posture）：ImportByID 经 useOnline()=false 走离线 FetchDetail。
+	offlinePub := pubmed.NewService(nil, pubmed.NewOfflineProvider(), false)
+	okAssert(!offlinePub.PublicEnabled(), "公网关闭 + 无 online provider → PublicEnabled()=false（4.8 判网降级前提）")
+	adapter := knowledge.NewSourceAdapter(offlinePub)
+	pmKB, _ := knowledge.Create(g, admin, "c06-smoke-pubmed", "PubMed 导入测试库", "PubMed")
+
+	// 4.6/4.7：离线缓存取一篇 PubMed 文献（PMID 34567890，离线语料含）→ c04 标 authorized → 仅落 staging 预览（不自动确认）。
+	pmDocID, perr := adapter.ImportFromPubMed(g, admin, pmKB, "pubmed", "34567890")
+	okAssert(perr == nil && pmDocID != "", "离线缓存完成一篇 PubMed 文献预览导入（4.7 断网降级：useOnline=false→离线 FetchDetail）")
+	var pmRow struct {
+		SourceType       string `gorm:"column:source_type"`
+		SourceIdentifier string `gorm:"column:source_identifier"`
+		AuthStatus       string `gorm:"column:authorization_status"`
+		IsStaging        bool   `gorm:"column:is_staging"`
+	}
+	g.Raw(`SELECT source_type, source_identifier, authorization_status, is_staging
+		FROM kb_documents WHERE tenant_id=? AND kb_document_id=?`, tenantID, pmDocID).Scan(&pmRow)
+	okAssert(pmRow.SourceType == "pubmed", "导入记录来源类型=pubmed（4.6）")
+	okAssert(pmRow.SourceIdentifier == "34567890", fmt.Sprintf("导入记录含 pubmed_id 来源标识=34567890（4.6，实际 %q）", pmRow.SourceIdentifier))
+	okAssert(pmRow.AuthStatus == "authorized", "授权三态初值=authorized（取自 c04 RetrievedSource.AuthStatus、不从零重建，不与 c04 漂移）")
+	// 修 HIGH：预览阶段仅落 staging、不自动确认、不物化任何 c01 文档（确认前不落正式可检索内容）。
+	okAssert(pmRow.IsStaging, "PubMed 导入仅落 staging、未自动确认（入库前人工预览确认 MUST）")
+	var preMaterialized int
+	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE kb_document_id=? AND document_id IS NULL`, pmDocID).Scan(&preMaterialized)
+	okAssert(preMaterialized == 1, "预览阶段 document_id IS NULL —— 未物化 c01 文档/chunk（D3 物理隔离：确认前不落正式内容）")
+
+	// 人工确认入库（ConfirmImport）→ 此时才物化 c01 文档 + chunk 并消费索引就绪。
+	okAssert(knowledge.ConfirmImport(g, admin, pmDocID) == nil, "人工确认入库 ConfirmImport 成功（入库前预览确认链路）")
+	var pmRow2 struct {
+		DocumentID  string `gorm:"column:document_id"`
+		IsStaging   bool   `gorm:"column:is_staging"`
+		IndexStatus string `gorm:"column:index_status"`
+	}
+	g.Raw(`SELECT document_id, is_staging, index_status FROM kb_documents WHERE tenant_id=? AND kb_document_id=?`, tenantID, pmDocID).Scan(&pmRow2)
+	okAssert(!pmRow2.IsStaging && pmRow2.DocumentID != "" && pmRow2.IndexStatus == "indexed",
+		"确认后物化 c01 文档 + 入正式库 + 索引就绪（is_staging=false、document_id 非空、index_status=indexed）")
+	// §16.3 chunk 来源元数据齐备（pubmed 路径：pubmed_id/doi/journal/year）。
+	var chunkMeta struct {
+		PubmedID string `gorm:"column:pubmed_id"`
+		DOI      string `gorm:"column:doi"`
+		Journal  string `gorm:"column:journal"`
+		Year     int    `gorm:"column:year"`
+	}
+	g.Raw(`SELECT pubmed_id, doi, journal, year FROM document_chunks WHERE document_id=? AND superseded=FALSE LIMIT 1`, pmRow2.DocumentID).Scan(&chunkMeta)
+	okAssert(chunkMeta.PubmedID == "34567890" && chunkMeta.DOI != "" && chunkMeta.Journal != "" && chunkMeta.Year == 2021,
+		fmt.Sprintf("文献 chunk §16.3 来源元数据齐备（pubmed_id=%s doi=%s journal=%s year=%d）", chunkMeta.PubmedID, chunkMeta.DOI, chunkMeta.Journal, chunkMeta.Year))
+	// 确认入库的文献可被检索（离线导入闭环可演示）。
+	searchEng2 := rag.NewEngine(pubmed.NewService(nil, nil, false))
+	srPmImp, _ := knowledge.KBSearch(g, searchEng2, admin, []string{pmKB}, "肺癌 免疫治疗", "hybrid", knowledge.SearchFilters{})
+	okAssert(srPmImp.Total >= 1, "确认入库的 PubMed 文献可被检索（4.7 离线导入闭环可演示）")
+	// 幂等闸：对已确认行二次 ConfirmImport 为 no-op，不退化 index_status、不新增解析作业（物化来源无真实文件、重解析必失败）。
+	var jobsBefore int
+	g.Raw(`SELECT COUNT(*)::int FROM document_parse_jobs WHERE document_id=?`, pmRow2.DocumentID).Scan(&jobsBefore)
+	okAssert(knowledge.ConfirmImport(g, admin, pmDocID) == nil, "二次 ConfirmImport 返回 nil（已确认行幂等 no-op）")
+	var idxAfter string
+	var jobsAfter int
+	g.Raw(`SELECT index_status FROM kb_documents WHERE kb_document_id=?`, pmDocID).Scan(&idxAfter)
+	g.Raw(`SELECT COUNT(*)::int FROM document_parse_jobs WHERE document_id=?`, pmRow2.DocumentID).Scan(&jobsAfter)
+	okAssert(idxAfter == "indexed" && jobsAfter == jobsBefore, "二次确认未退化 index_status=indexed、未新增解析作业（修 low 二次确认退化）")
+
+	// 4.6 no-drift + 修 HIGH（取消无残留）：c04 标 preview_only（DOI 非 10. 前缀）→ 仅临时预览、不可确认、取消无残留。
+	prevDocID, prerr := adapter.ImportFromPubMed(g, admin, pmKB, "doi", "not-a-doi-c06smoke")
+	okAssert(prerr == nil && prevDocID != "", "c04 标 preview_only 的 DOI 导入落 staging（不报错）")
+	var prevRow struct {
+		AuthStatus string `gorm:"column:authorization_status"`
+		IsStaging  bool   `gorm:"column:is_staging"`
+		DocID      *string `gorm:"column:document_id"`
+	}
+	g.Raw(`SELECT authorization_status, is_staging, document_id FROM kb_documents WHERE tenant_id=? AND kb_document_id=?`, tenantID, prevDocID).Scan(&prevRow)
+	okAssert(prevRow.AuthStatus == "preview_only" && prevRow.IsStaging && prevRow.DocID == nil,
+		"c04 preview_only 标记被忠实消费（c06 不重新判为 authorized）→ 仅临时预览、未物化 c01 内容")
+	okAssert(errors.Is(knowledge.ConfirmImport(g, admin, prevDocID), knowledge.ErrNotAuthorized),
+		"preview_only 不可确认入正式库（仅临时预览，需管理员补授权）")
+	// 取消预览 → staging 记录删除、且预览阶段未建任何 c01 文档 → 无残留（修 HIGH，对应 4.9「取消后无残留」）。
+	okAssert(knowledge.CancelImport(g, admin, prevDocID) == nil, "取消预览成功")
+	var prevGone int
+	g.Raw(`SELECT COUNT(*)::int FROM kb_documents WHERE kb_document_id=?`, prevDocID).Scan(&prevGone)
+	okAssert(prevGone == 0, "取消后 staging 记录删除、预览阶段从未物化 c01 文档/chunk → 无残留（修 HIGH 4.9）")
+
+	// 4.8：公网不可用 → URL/白名单来源置不可用（ErrSourceOffline）+ 留痕，引导改用「批量上传已下载授权文件」。
+	g.Exec(`DELETE FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_source_offline'`, tenantID)
+	_, offErr := adapter.ImportFromURL(g, admin, pmKB, knowledge.SrcURL, "https://c06-smoke-allow.example.org/guideline", true)
+	okAssert(errors.Is(offErr, knowledge.ErrSourceOffline), "公网不可用时 URL 导入返回 ErrSourceOffline（4.8 该来源置不可用）")
+	var offlineAudit int
+	g.Raw(`SELECT COUNT(*)::int FROM audit_logs WHERE tenant_id=? AND action_type='kb_import_source_offline' AND result='失败'`, tenantID).Scan(&offlineAudit)
+	okAssert(offlineAudit == 1, "URL 离线降级留痕 kb_import_source_offline（result=失败，引导改用批量上传）")
+	// 等效入库闭环不中断：改用上传已下载授权文件（经同一导入管线）完成等效入库。
+	fbDoc := mkDocChunks("c06-smoke-fallback.txt")
+	fbRes := knowledge.BatchImport(g, admin, []knowledge.ImportRequest{
+		{KBID: pmKB, SourceType: knowledge.SrcUpload, SourceURL: "upload://downloaded-authorized.pdf", Title: "已下载授权文件", DocumentID: fbDoc},
+	})
+	okAssert(len(fbRes) == 1 && fbRes[0].KBDocumentID != "" && fbRes[0].Error == "",
+		"改用上传已下载授权文件完成等效入库（4.8 离线闭环不中断）")
+
 	cleanup(g, tenantID)
-	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库 + 批量上传/上传闸）全部通过")
+	fmt.Println("\n✅ c06 冒烟（PR1 + PR2 + PR3wA 问答 + PR3wB 搜索 + PR3wC ACL + waveD 审计/问答日志 + 演示库/空库 + 批量上传/上传闸 + PubMed/URL 来源适配器）全部通过")
 }
 
 // containsStr 判断字符串切片是否含目标值（smoke 本地小工具）。
