@@ -299,6 +299,7 @@ type kbDocMetaRow struct {
 	WhitelistRuleID     *string   `gorm:"column:whitelist_rule_id"`
 	AuthorizedBy        *string   `gorm:"column:authorized_by"`
 	PreviewPayload      *string   `gorm:"column:preview_payload"`
+	IsStaging           bool      `gorm:"column:is_staging"`
 }
 
 // ConfirmImport 执行四段式管线的「授权闸门 → 入库」（入库前预览确认 / 人工确认链路）：
@@ -308,7 +309,7 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	var rows []kbDocMetaRow
 	if err := db.Raw(
 		`SELECT kb_id, source_url, source_type, imported_by, imported_at, copyright_status, source_version,
-		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by, preview_payload
+		        parse_status, index_status, authorization_status, document_id, whitelist_rule_id, authorized_by, preview_payload, is_staging
 		 FROM kb_documents WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID,
 	).Scan(&rows).Error; err != nil {
 		return err
@@ -323,6 +324,11 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	}
 	if !can {
 		return ErrForbidden
+	}
+	// 幂等闸：仅 staging 行可确认。对已确认（is_staging=false）行二次确认为无害 no-op，
+	// 避免把已索引文档重置 parse/index 状态、重复入队解析（物化来源无真实文件、重解析必失败而退化）。
+	if !r.IsStaging {
+		return nil
 	}
 	if r.AuthorizationStatus == AuthRejected {
 		return ErrRejectedSource
@@ -340,15 +346,13 @@ func ConfirmImport(db *gorm.DB, u auth.AuthUser, kbDocID string) error {
 	}
 	materialized := false
 	if docID == "" && r.PreviewPayload != nil && *r.PreviewPayload != "" {
-		newDocID, err := materializePreview(db, u, r.KBID, *r.PreviewPayload)
+		// 物化 c01 文档/chunk 与回链 kb_documents.document_id 在同一事务内完成（原子，避免中途失败留游离文档）。
+		newDocID, err := materializePreview(db, u, r.KBID, kbDocID, *r.PreviewPayload)
 		if err != nil {
 			return err
 		}
 		docID = newDocID
 		materialized = true
-		if err := db.Exec(`UPDATE kb_documents SET document_id = ? WHERE tenant_id = ? AND kb_document_id = ?`, docID, u.TenantID, kbDocID).Error; err != nil {
-			return err
-		}
 	}
 	// 确认入库：staging → 正式库（物理进入正式检索范围由 D3 的 is_staging=false 标记）。
 	if err := db.Exec(`UPDATE kb_documents SET is_staging = FALSE, updated_at = NOW() WHERE tenant_id = ? AND kb_document_id = ?`, u.TenantID, kbDocID).Error; err != nil {

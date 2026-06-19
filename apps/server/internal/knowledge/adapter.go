@@ -129,9 +129,10 @@ func (a *SourceAdapter) ImportFromURL(db *gorm.DB, u auth.AuthUser, kbID, source
 }
 
 // materializePreview 在确认入库时把 staging 的 preview_payload 物化为 c01 documents + document_version + 单 chunk
-// （§16.3 来源元数据：source_title/source_url/pubmed_id/doi/journal/year）。返回新建 document_id。
+// （§16.3 来源元数据：source_title/source_url/pubmed_id/doi/journal/year），并在同一事务内回链 kb_documents.document_id
+// （物化与回链原子化，避免中途失败留游离 c01 文档）。返回新建 document_id。
 // chunk 初始 source_type='document'（HandleIndexReady 翻为 kb），与 demoseed/真实管线产出同构。
-func materializePreview(db *gorm.DB, u auth.AuthUser, kbID, payloadJSON string) (string, error) {
+func materializePreview(db *gorm.DB, u auth.AuthUser, kbID, kbDocID, payloadJSON string) (string, error) {
 	var p previewPayload
 	if err := json.Unmarshal([]byte(payloadJSON), &p); err != nil {
 		return "", err
@@ -158,9 +159,13 @@ func materializePreview(db *gorm.DB, u auth.AuthUser, kbID, payloadJSON string) 
 		if err := tx.Exec(`UPDATE documents SET current_version_id = ? WHERE document_id = ?`, verID, docID).Error; err != nil {
 			return err
 		}
-		return tx.Exec(`INSERT INTO document_chunks (tenant_id, document_id, document_version, source_type, source_title, source_url, pubmed_id, doi, journal, year, paragraph_index, chunk_text, chunk_acl, superseded)
+		if err := tx.Exec(`INSERT INTO document_chunks (tenant_id, document_id, document_version, source_type, source_title, source_url, pubmed_id, doi, journal, year, paragraph_index, chunk_text, chunk_acl, superseded)
 			VALUES (?, ?, 1, 'document', ?, ?, ?, ?, ?, ?, 0, ?, '{"inheritedFrom":"document","entries":[]}'::jsonb, FALSE)`,
-			u.TenantID, docID, p.Title, p.URL, nullIfBlank(p.PubmedID), nullIfBlank(p.DOI), nullIfBlank(p.Journal), nullIfZero(p.Year), abstract).Error
+			u.TenantID, docID, p.Title, p.URL, nullIfBlank(p.PubmedID), nullIfBlank(p.DOI), nullIfBlank(p.Journal), nullIfZero(p.Year), abstract).Error; err != nil {
+			return err
+		}
+		// 同事务回链 staging 行（物化与回链原子化）。
+		return tx.Exec(`UPDATE kb_documents SET document_id = ? WHERE tenant_id = ? AND kb_document_id = ?`, docID, u.TenantID, kbDocID).Error
 	})
 	if err != nil {
 		return "", err

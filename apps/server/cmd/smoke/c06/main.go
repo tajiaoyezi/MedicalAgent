@@ -814,6 +814,15 @@ func main() {
 	searchEng2 := rag.NewEngine(pubmed.NewService(nil, nil, false))
 	srPmImp, _ := knowledge.KBSearch(g, searchEng2, admin, []string{pmKB}, "肺癌 免疫治疗", "hybrid", knowledge.SearchFilters{})
 	okAssert(srPmImp.Total >= 1, "确认入库的 PubMed 文献可被检索（4.7 离线导入闭环可演示）")
+	// 幂等闸：对已确认行二次 ConfirmImport 为 no-op，不退化 index_status、不新增解析作业（物化来源无真实文件、重解析必失败）。
+	var jobsBefore int
+	g.Raw(`SELECT COUNT(*)::int FROM document_parse_jobs WHERE document_id=?`, pmRow2.DocumentID).Scan(&jobsBefore)
+	okAssert(knowledge.ConfirmImport(g, admin, pmDocID) == nil, "二次 ConfirmImport 返回 nil（已确认行幂等 no-op）")
+	var idxAfter string
+	var jobsAfter int
+	g.Raw(`SELECT index_status FROM kb_documents WHERE kb_document_id=?`, pmDocID).Scan(&idxAfter)
+	g.Raw(`SELECT COUNT(*)::int FROM document_parse_jobs WHERE document_id=?`, pmRow2.DocumentID).Scan(&jobsAfter)
+	okAssert(idxAfter == "indexed" && jobsAfter == jobsBefore, "二次确认未退化 index_status=indexed、未新增解析作业（修 low 二次确认退化）")
 
 	// 4.6 no-drift + 修 HIGH（取消无残留）：c04 标 preview_only（DOI 非 10. 前缀）→ 仅临时预览、不可确认、取消无残留。
 	prevDocID, prerr := adapter.ImportFromPubMed(g, admin, pmKB, "doi", "not-a-doi-c06smoke")

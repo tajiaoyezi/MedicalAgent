@@ -206,7 +206,8 @@ func RegisterKnowledge(r *gin.Engine, db *gorm.DB, store *storage.Storage, aimed
 	})
 
 	// PubMed/PMC 来源适配器（4.6/4.7）：经 c04 pubmed-data-service 按 kind(pubmed/pmc/doi)+id 取结构化文献
-	// （公网可用→在线真实拉取；否则→离线缓存降级），授权三态初值取自 c04 标记；authorized 自动入库+索引。
+	// （公网可用→在线真实拉取；否则→离线缓存降级），授权三态初值取自 c04 标记；一律仅落 staging 预览、不自动确认，
+	// 入正式库与索引须经人工 ConfirmImport（入库前人工预览确认 MUST）。
 	r.POST("/api/kb/:id/import/pubmed", func(c *gin.Context) {
 		user, ok := auth.Require(c)
 		if !ok {
